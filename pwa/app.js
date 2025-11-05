@@ -10,6 +10,13 @@
   const durationEl = qs('#duration');
   const modelEl = qs('#model');
   const fileEl = qs('#fileinput');
+  const prevImg = qs('#preview-img');
+  const prevVideo = qs('#preview-video');
+  const prevFallback = qs('#preview-fallback');
+  const prevName = qs('#preview-name');
+  const prevType = qs('#preview-type');
+  const prevSize = qs('#preview-size');
+  let currentObjectUrl = null;
 
   const defaultServer = localStorage.getItem('sora_server') || `${location.origin}`;
   serverInput.value = defaultServer;
@@ -93,6 +100,69 @@
     log(`attach(uploaded): ${JSON.stringify(attach)}`);
   }
 
+  function bytesToStr(n) {
+    if (!n && n !== 0) return '';
+    const i = n;
+    if (i < 1024) return `${i} B`;
+    const kb = i / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  }
+
+  function clearPreview() {
+    if (currentObjectUrl) {
+      URL.revokeObjectURL(currentObjectUrl);
+      currentObjectUrl = null;
+    }
+    prevImg.hidden = true;
+    prevVideo.hidden = true;
+    prevFallback.hidden = true;
+    prevImg.removeAttribute('src');
+    prevVideo.removeAttribute('src');
+  }
+
+  function showPreview(file) {
+    clearPreview();
+    if (!file) return;
+    prevName.textContent = file.name || '(unnamed)';
+    prevType.textContent = file.type || 'unknown';
+    prevSize.textContent = bytesToStr(file.size || 0);
+
+    const name = (file.name || '').toLowerCase();
+    const ext = name.split('.').pop() || '';
+    const url = URL.createObjectURL(file);
+    currentObjectUrl = url;
+
+    const isImage = (file.type && file.type.startsWith('image/')) || ['heic','heif','avif','jpg','jpeg','png','webp'].includes(ext);
+    const isVideo = (file.type && file.type.startsWith('video/')) || ['mp4','webm','mov'].includes(ext);
+
+    if (isImage) {
+      prevImg.hidden = false;
+      prevImg.src = url;
+      prevImg.onload = () => { /* ok */ };
+      prevImg.onerror = () => {
+        prevImg.hidden = true;
+        prevFallback.hidden = false;
+      };
+      prevFallback.hidden = true;
+      prevVideo.hidden = true;
+      return;
+    }
+    if (isVideo) {
+      prevVideo.hidden = false;
+      prevVideo.src = url;
+      prevVideo.load();
+      prevFallback.hidden = true;
+      prevImg.hidden = true;
+      return;
+    }
+    // Fallback
+    prevFallback.hidden = false;
+    prevImg.hidden = true;
+    prevVideo.hidden = true;
+  }
+
   async function doType(composeCreate) {
     const text = promptEl.value;
     if (composeCreate) {
@@ -151,4 +221,9 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch((e) => log(`SW fail: ${e.message}`));
   }
+
+  fileEl && fileEl.addEventListener('change', (e) => {
+    const f = fileEl.files && fileEl.files[0];
+    showPreview(f || null);
+  });
 })();
