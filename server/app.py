@@ -231,7 +231,7 @@ class AttachHandler(BaseHandler):
     async def post(self):
         body = json.loads(self.request.body or b"{}")
         path = body.get("path")
-        click_plus = bool(body.get("click_plus", True))
+        click_plus = bool(body.get("click_plus", False))
         if not path:
             self.set_status(400)
             return self.finish(json.dumps({"ok": False, "error": "path required"}))

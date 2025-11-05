@@ -60,7 +60,7 @@
   }
 
   async function attachServerPath(path, label) {
-    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
+    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: false }) });
     log(`${label || 'attach'}: ${JSON.stringify(data)}`);
     if (data && data.ok) lastUploadedPath = path;
     return data;

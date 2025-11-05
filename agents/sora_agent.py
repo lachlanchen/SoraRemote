@@ -428,12 +428,9 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
         except Exception:
             pass
 
-    # Click plus first to ensure correct input is in DOM (optional)
-    # Also helpful to guarantee the real input (wired to composer) exists.
-    plus_el = None
-    if click_plus:
-        ctrls = find_page_controls(driver, timeout=10)
-        plus_el = ctrls.get("plus")
+    ctrls = find_page_controls(driver, timeout=10)
+    plus_el = ctrls.get("plus")
+    if click_plus and plus_el is not None:
         _ = click_safely(driver, plus_el, force=False)
         time.sleep(0.5)
 
@@ -498,19 +495,19 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
 
     attach_path = _convert_image_if_needed(path, accept)
 
-    lazy_payload: dict[str, str] | None = None
+    payload_cache: dict[str, str] | None = None
 
     def _ensure_payload() -> dict[str, str] | None:
-        nonlocal lazy_payload
-        if lazy_payload is not None:
-            return lazy_payload
+        nonlocal payload_cache
+        if payload_cache is not None:
+            return payload_cache
         try:
             with open(attach_path, 'rb') as fh:
                 data_b64 = base64.b64encode(fh.read()).decode('ascii')
             name = os.path.basename(attach_path)
             mime = mimetypes.guess_type(attach_path)[0] or 'application/octet-stream'
-            lazy_payload = {'b64': data_b64, 'name': name, 'mime': mime}
-            return lazy_payload
+            payload_cache = {'b64': data_b64, 'name': name, 'mime': mime}
+            return payload_cache
         except Exception:
             return None
 
@@ -519,65 +516,62 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
         if not payload:
             return False
         try:
-            return bool(driver.execute_async_script(
-                """
-                const el = arguments[0];
-                const b64 = arguments[1];
-                const name = arguments[2];
-                const mime = arguments[3];
-                const done = arguments[arguments.length - 1];
-                try {
-                    if (typeof window.DataTransfer === 'undefined') {
+            return bool(
+                driver.execute_async_script(
+                    """
+                    const el = arguments[0];
+                    const b64 = arguments[1];
+                    const name = arguments[2];
+                    const mime = arguments[3];
+                    const done = arguments[arguments.length - 1];
+                    try {
+                        if (typeof window.DataTransfer === 'undefined') {
+                            done(false);
+                            return;
+                        }
+                        const binary = atob(b64);
+                        const len = binary.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; ++i) {
+                            bytes[i] = binary.charCodeAt(i);
+                        }
+                        const file = new File([bytes], name, { type: mime || 'application/octet-stream' });
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files').set;
+                        setter.call(el, dt.files);
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        done(true);
+                    } catch (err) {
+                        console.error('inject error', err);
                         done(false);
-                        return;
                     }
-                    const binary = atob(b64);
-                    const len = binary.length;
-                    const bytes = new Uint8Array(len);
-                    for (let i = 0; i < len; ++i) {
-                        bytes[i] = binary.charCodeAt(i);
-                    }
-                    const file = new File([bytes], name, { type: mime || 'application/octet-stream' });
-                    const dt = new DataTransfer();
-                    dt.items.add(file);
-                    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files').set;
-                    setter.call(el, dt.files);
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                    done(true);
-                } catch (err) {
-                    console.error('inject error', err);
-                    done(false);
-                }
-                """,
-                el,
-                payload['b64'],
-                payload['name'],
-                payload['mime'],
-            ))
+                    """,
+                    el,
+                    payload['b64'],
+                    payload['name'],
+                    payload['mime'],
+                )
+            )
         except Exception:
             return False
 
-    sent = False
-    try:
-        reveal_input_file(driver, target)
-        target.send_keys(attach_path)
-        sent = True
+    def _set_file(el) -> bool:
+        if _inject_file_via_js(el):
+            return True
         try:
-            driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", target)
+            reveal_input_file(driver, el)
+            el.send_keys(attach_path)
+            try:
+                driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", el)
+            except Exception:
+                pass
+            return True
         except Exception:
-            pass
-    except Exception:
-        sent = False
-
-    if not sent:
-        if not _inject_file_via_js(target):
             return False
-    else:
-        # If send_keys did not select files, fallback to JS injection once
-        time.sleep(0.3)
-        if not driver.execute_script("return arguments[0].files && arguments[0].files.length > 0;", target):
-            if not _inject_file_via_js(target):
-                return False
+
+    if not _set_file(target):
+        return False
 
     # Wait for UI confirmation (Remove media button appears)
     def _has_remove():
@@ -605,25 +599,8 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
             time.sleep(0.4)
             near = driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Attach media']]/following::input[@type='file'][1]")
             if near.get_attribute('disabled') is None:
-                sent = False
-                try:
-                    reveal_input_file(driver, near)
-                    near.send_keys(attach_path)
-                    sent = True
-                    try:
-                        driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", near)
-                    except Exception:
-                        pass
-                except Exception:
-                    sent = False
-                if not sent:
-                    if not _inject_file_via_js(near):
-                        return False
-                else:
-                    time.sleep(0.3)
-                    if not driver.execute_script("return arguments[0].files && arguments[0].files.length > 0;", near):
-                        if not _inject_file_via_js(near):
-                            return False
+                if not _set_file(near):
+                    return False
                 end_confirm = time.time() + 6.0
                 while time.time() < end_confirm:
                     if _has_remove() or _files_selected(near):
