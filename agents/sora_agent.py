@@ -310,6 +310,215 @@ def click_safely(driver, el, force: bool = False) -> bool:
             return False
 
 
+def find_file_inputs(driver):
+    try:
+        return driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+    except Exception:
+        return []
+
+
+def reveal_input_file(driver, el):
+    try:
+        driver.execute_script(
+            "arguments[0].style.display='block'; arguments[0].style.visibility='visible'; arguments[0].removeAttribute('hidden');",
+            el,
+        )
+    except Exception:
+        pass
+
+
+def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: int = 20) -> bool:
+    if not os.path.isabs(path):
+        # Normalize to absolute path within server
+        path = os.path.abspath(path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+
+    # Click plus first to ensure input is in DOM
+    if click_plus:
+        ctrls = find_page_controls(driver, timeout=10)
+        _ = click_safely(driver, ctrls.get("plus"), force=False)
+        time.sleep(0.5)
+
+    # Wait for an input[type=file] to exist
+    end = time.time() + timeout
+    target = None
+    while time.time() < end and target is None:
+        inputs = find_file_inputs(driver)
+        if inputs:
+            target = inputs[0]
+            break
+        time.sleep(0.25)
+
+    if target is None:
+        # Try a generic injection: create a file input and attach to a known container
+        try:
+            container = driver.find_element(By.TAG_NAME, 'body')
+            driver.execute_script(
+                "var i=document.createElement('input'); i.type='file'; i.id='sora_injected_file'; i.style.opacity=1; i.style.display='block'; i.style.position='fixed'; i.style.left='-1000px'; document.body.appendChild(i);",
+            )
+            target = driver.find_element(By.ID, 'sora_injected_file')
+        except Exception:
+            pass
+
+    if target is None:
+        return False
+
+    reveal_input_file(driver, target)
+
+    try:
+        target.send_keys(path)
+    except Exception:
+        return False
+
+    # Small wait for UI to react
+    time.sleep(1.0)
+    return True
+
+
+def fill_storyboard(driver, scenes: list[str], ensure_storyboard: bool = True, timeout: int = 30) -> int:
+    """Fill storyboard textareas with provided scenes. Returns number filled."""
+    if ensure_storyboard:
+        ctrls = find_page_controls(driver, timeout=10)
+        _ = click_safely(driver, ctrls.get("storyboard"), force=False)
+        time.sleep(0.3)
+
+    def _find_scene_textareas():
+        try:
+            return driver.find_elements(By.CSS_SELECTOR, "textarea[placeholder='Describe this scene… who, where, what happens?']")
+        except Exception:
+            return []
+
+    # Ensure enough textareas by clicking an add-scene button if present
+    def _add_scene_button():
+        x = "//button[contains(@class,'border-dashed') and .//div[contains(normalize-space(),'Describe this scene')]]"
+        try:
+            return driver.find_element(By.XPATH, x)
+        except Exception:
+            return None
+
+    filled = 0
+    for idx, text in enumerate(scenes):
+        # Grow scenes if needed
+        start = time.time()
+        while True:
+            areas = _find_scene_textareas()
+            if len(areas) > idx:
+                break
+            add_btn = _add_scene_button()
+            if add_btn is not None:
+                try:
+                    add_btn.click()
+                except Exception:
+                    try:
+                        driver.execute_script("arguments[0].click();", add_btn)
+                    except Exception:
+                        pass
+            if time.time() - start > timeout:
+                break
+            time.sleep(0.4)
+
+        areas = _find_scene_textareas()
+        if len(areas) <= idx:
+            break
+
+        el = areas[idx]
+        try:
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
+        except Exception:
+            pass
+        try:
+            el.click()
+        except Exception:
+            try:
+                driver.execute_script("arguments[0].click();", el)
+            except Exception:
+                pass
+        try:
+            el.send_keys(Keys.CONTROL, 'a')
+            el.send_keys(text)
+        except Exception:
+            pass
+        try:
+            driver.execute_script(
+                "arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles:true}));",
+                el,
+                text,
+            )
+        except Exception:
+            pass
+        filled += 1
+
+    return filled
+
+
+def apply_settings(driver, orientation: str | None = None, duration: int | None = None, timeout: int = 20) -> dict:
+    """Apply settings like orientation and duration via the settings menu.
+    Returns a dict of attempted values.
+    """
+    result = {"orientation": None, "duration": None}
+    # Open settings menu
+    ctrls = find_page_controls(driver, timeout=10)
+    _ = click_safely(driver, ctrls.get("settings"), force=False)
+    time.sleep(0.2)
+
+    def click_menu_item(text):
+        xp = f"//div[@role='menuitem' and .//div[contains(normalize-space(),'{text}')]]"
+        try:
+            el = driver.find_element(By.XPATH, xp)
+            el.click()
+            return True
+        except Exception:
+            try:
+                el = driver.find_element(By.XPATH, xp)
+                driver.execute_script("arguments[0].click();", el)
+                return True
+            except Exception:
+                return False
+
+    if orientation:
+        if click_menu_item('Orientation'):
+            opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
+            xp = f"//div[@role='menuitemradio' and .//span[normalize-space()='{opt}']]"
+            try:
+                el = driver.find_element(By.XPATH, xp)
+                el.click()
+                result["orientation"] = opt
+            except Exception:
+                try:
+                    el = driver.find_element(By.XPATH, xp)
+                    driver.execute_script("arguments[0].click();", el)
+                    result["orientation"] = opt
+                except Exception:
+                    pass
+
+    if duration is not None:
+        if click_menu_item('Duration'):
+            label = f"{int(duration)}s"
+            xp = f"//div[@role='menuitemradio' and .//*[normalize-space()='{label}']]"
+            # Some menus might not be radio; try generic menu item too
+            try:
+                el = driver.find_element(By.XPATH, xp)
+            except Exception:
+                xp = f"//div[@role='menuitem' and .//*[normalize-space()='{label}']]"
+                try:
+                    el = driver.find_element(By.XPATH, xp)
+                except Exception:
+                    el = None
+            if el is not None:
+                try:
+                    el.click()
+                    result["duration"] = int(duration)
+                except Exception:
+                    try:
+                        driver.execute_script("arguments[0].click();", el)
+                        result["duration"] = int(duration)
+                    except Exception:
+                        pass
+
+    return result
+
+
 def wait_for_any_text(driver, timeout: int = 30):
     """
     As a generic signal the page rendered, wait for any non-empty body text.

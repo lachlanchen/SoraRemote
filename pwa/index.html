@@ -35,11 +35,39 @@
       </section>
 
       <section>
+        <label for="filepath">Attach media (server path)</label>
+        <input id="filepath" type="text" placeholder="/home/user/Downloads/file.jpg" />
+        <div class="row" style="grid-template-columns: repeat(2,minmax(0,1fr));">
+          <button data-action="attach-path">Attach by Path</button>
+        </div>
+      </section>
+
+      <section>
         <label for="prompt">Prompt</label>
         <textarea id="prompt" placeholder="Describe your video..."></textarea>
         <div class="row">
           <button data-action="type">Send Text</button>
           <button data-action="compose">Compose & Create</button>
+        </div>
+      </section>
+
+      <section>
+        <label for="scenes">Storyboard (one scene per line)</label>
+        <textarea id="scenes" placeholder="Scene 1 text\nScene 2 text"></textarea>
+        <div class="row" style="grid-template-columns: repeat(2,minmax(0,1fr));">
+          <button data-action="apply-storyboard">Apply Storyboard</button>
+        </div>
+      </section>
+
+      <section>
+        <label>Settings</label>
+        <div class="row" style="grid-template-columns: repeat(3,minmax(0,1fr));">
+          <select id="orientation">
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+          </select>
+          <input id="duration" type="number" min="1" step="1" placeholder="Duration (s)" />
+          <button data-action="apply-settings">Apply Settings</button>
         </div>
       </section>
 
@@ -52,4 +80,3 @@
     <script src="/app.js"></script>
   </body>
   </html>
-

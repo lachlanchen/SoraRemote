@@ -25,6 +25,9 @@ from agents.sora_agent import (
     find_page_controls,
     element_disabled_state,
     click_safely,
+    attach_media_by_path,
+    fill_storyboard,
+    apply_settings,
 )
 
 
@@ -210,6 +213,74 @@ class ComposeHandler(BaseHandler):
         self.write(json.dumps({"ok": ok}))
 
 
+class AttachHandler(BaseHandler):
+    async def post(self):
+        body = json.loads(self.request.body or b"{}")
+        path = body.get("path")
+        click_plus = bool(body.get("click_plus", True))
+        if not path:
+            self.set_status(400)
+            return self.finish(json.dumps({"ok": False, "error": "path required"}))
+        await HUB.emit("attach", {"path": path, "click_plus": click_plus})
+        async with ACTION_LOCK:
+            await _ensure_chrome_open(DEFAULT_URL)
+            def _attach():
+                with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
+                    d.get(DEFAULT_URL)
+                    wait_for_page_loaded(d, timeout=30)
+                    try:
+                        wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
+                    except Exception:
+                        pass
+                    return attach_media_by_path(d, path, click_plus=click_plus, timeout=20)
+            ok = await asyncio.get_event_loop().run_in_executor(None, _attach)
+        self.write(json.dumps({"ok": bool(ok)}))
+
+
+class StoryboardHandler(BaseHandler):
+    async def post(self):
+        body = json.loads(self.request.body or b"{}")
+        scenes = body.get("scenes") or []
+        if not isinstance(scenes, list):
+            self.set_status(400)
+            return self.finish(json.dumps({"ok": False, "error": "scenes must be a list"}))
+        await HUB.emit("storyboard", {"count": len(scenes)})
+        async with ACTION_LOCK:
+            await _ensure_chrome_open(DEFAULT_URL)
+            def _fill():
+                with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
+                    d.get(DEFAULT_URL)
+                    wait_for_page_loaded(d, timeout=30)
+                    try:
+                        wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
+                    except Exception:
+                        pass
+                    return fill_storyboard(d, scenes, ensure_storyboard=True, timeout=30)
+            filled = await asyncio.get_event_loop().run_in_executor(None, _fill)
+        self.write(json.dumps({"ok": True, "filled": int(filled)}))
+
+
+class SettingsHandler(BaseHandler):
+    async def post(self):
+        body = json.loads(self.request.body or b"{}")
+        orientation = body.get("orientation")
+        duration = body.get("duration")
+        await HUB.emit("settings", {"orientation": orientation, "duration": duration})
+        async with ACTION_LOCK:
+            await _ensure_chrome_open(DEFAULT_URL)
+            def _apply():
+                with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
+                    d.get(DEFAULT_URL)
+                    wait_for_page_loaded(d, timeout=30)
+                    try:
+                        wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
+                    except Exception:
+                        pass
+                    return apply_settings(d, orientation=orientation, duration=duration, timeout=20)
+            res = await asyncio.get_event_loop().run_in_executor(None, _apply)
+        self.write(json.dumps({"ok": True, "applied": res}))
+
+
 class WSLogs(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin: str) -> bool:
         return True
@@ -238,6 +309,9 @@ def make_app() -> tornado.web.Application:
         (r"/api/actions", ActionsHandler),
         (r"/api/click", ClickHandler),
         (r"/api/type", TypeHandler),
+        (r"/api/attach", AttachHandler),
+        (r"/api/storyboard", StoryboardHandler),
+        (r"/api/settings", SettingsHandler),
         (r"/api/compose", ComposeHandler),
         (r"/ws", WSLogs),
         (r"/(.*)", SPAHandler, {"path": pwa_root, "default_filename": "index.html"}),
