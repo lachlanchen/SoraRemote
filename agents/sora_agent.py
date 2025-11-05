@@ -19,6 +19,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import StaleElementReferenceException
 from typing import List, Tuple
 
 try:
@@ -824,19 +825,21 @@ def apply_settings(
                 f"{base_xpath}//div[@role='menuitemradio' and contains({lower_expr}, '{opt_label}')]"
             )
             try:
-                return WebDriverWait(driver, 4).until(
+                el = WebDriverWait(driver, 4).until(
                     EC.element_to_be_clickable((By.XPATH, option_xpath))
                 )
+                return option_xpath, el
             except Exception:
-                return None
+                return None, None
 
         target = None
+        target_xpath = None
         for opt in option_labels_norm:
-            target = locate_option(opt)
+            target_xpath, target = locate_option(opt)
             if target is not None:
                 break
 
-        if target is None:
+        if target is None or target_xpath is None:
             return None
 
         try:
@@ -858,16 +861,30 @@ def apply_settings(
         end = time.time() + 3.0
         while time.time() < end:
             try:
-                state = (target.get_attribute('aria-checked') or target.get_attribute('data-state') or '').lower()
-                if state in ('true', 'checked'):
-                    return (target.text or '').strip() or None
+                current = driver.find_element(By.XPATH, target_xpath)
+            except StaleElementReferenceException:
+                time.sleep(0.1)
+                continue
             except Exception:
                 break
+            try:
+                state = (current.get_attribute('aria-checked') or current.get_attribute('data-state') or '').lower()
+            except StaleElementReferenceException:
+                time.sleep(0.1)
+                continue
+            except Exception:
+                break
+            if state in ('true', 'checked'):
+                return (current.text or '').strip() or None
             time.sleep(0.1)
 
-        state = (target.get_attribute('aria-checked') or target.get_attribute('data-state') or '').lower()
-        if state in ('true', 'checked'):
-            return (target.text or '').strip() or None
+        try:
+            current = driver.find_element(By.XPATH, target_xpath)
+            state = (current.get_attribute('aria-checked') or current.get_attribute('data-state') or '').lower()
+            if state in ('true', 'checked'):
+                return (current.text or '').strip() or None
+        except Exception:
+            pass
         return None
 
     if orientation:
