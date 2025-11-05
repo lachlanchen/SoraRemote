@@ -17,6 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 from typing import List, Tuple
 
 try:
@@ -757,7 +758,8 @@ def apply_settings(
             return False
 
         parent_selected = False
-        for _ in range(3):
+        submenu_root = None
+        for _ in range(4):
             try:
                 menu_items = driver.find_elements(By.XPATH, "//div[@role='menuitem']")
             except Exception:
@@ -776,13 +778,21 @@ def apply_settings(
                         pass
                     time.sleep(0.15)
                     try:
-                        item.click()
+                        ActionChains(driver).move_to_element(item).pause(0.05).click().perform()
                     except Exception:
                         try:
                             driver.execute_script("arguments[0].click();", item)
                         except Exception:
                             continue
                     parent_selected = True
+                    submenu_id = item.get_attribute("aria-controls")
+                    if submenu_id:
+                        try:
+                            submenu_root = WebDriverWait(driver, 3).until(
+                                EC.presence_of_element_located((By.ID, submenu_id))
+                            )
+                        except Exception:
+                            submenu_root = None
                     break
             if parent_selected:
                 break
@@ -795,7 +805,10 @@ def apply_settings(
 
         for _ in range(4):
             try:
-                radios = driver.find_elements(By.XPATH, "//div[@role='menuitemradio']")
+                if submenu_root is not None:
+                    radios = submenu_root.find_elements(By.CSS_SELECTOR, "div[role='menuitemradio']")
+                else:
+                    radios = driver.find_elements(By.XPATH, "//div[@role='menuitemradio']")
             except Exception:
                 radios = []
             target = None
@@ -818,7 +831,7 @@ def apply_settings(
                 pass
             time.sleep(0.1)
             try:
-                target.click()
+                ActionChains(driver).move_to_element(target).pause(0.05).click().perform()
             except Exception:
                 try:
                     driver.execute_script("arguments[0].click();", target)
