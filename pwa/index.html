@@ -27,6 +27,26 @@
         <button data-action="list">List Controls</button>
       </section>
 
+      <!-- Upload block moved above the PLUS row for faster flow -->
+      <section>
+        <label>Upload (mobile/desktop) and attach</label>
+        <input id="fileinput" type="file" />
+        <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
+          <button data-action="upload-and-attach">Upload & Attach</button>
+        </div>
+        <div id="preview-wrapper">
+          <div class="muted small">Preview</div>
+          <div id="preview-area">
+            <img id="preview-img" alt="preview" hidden />
+            <video id="preview-video" controls hidden></video>
+            <div id="preview-fallback" class="muted" hidden>
+              Selected file: <span id="preview-name"></span>
+              (<span id="preview-type"></span>, <span id="preview-size"></span>)
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="row">
         <button data-action="plus">Plus</button>
         <button data-action="storyboard">Storyboard</button>
@@ -78,24 +98,7 @@
         </div>
       </section>
 
-      <section>
-        <label>Upload (mobile/desktop) and attach</label>
-        <input id="fileinput" type="file" />
-        <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
-          <button data-action="upload-and-attach">Upload & Attach</button>
-        </div>
-        <div id="preview-wrapper">
-          <div class="muted small">Preview</div>
-          <div id="preview-area">
-            <img id="preview-img" alt="preview" hidden />
-            <video id="preview-video" controls hidden></video>
-            <div id="preview-fallback" class="muted" hidden>
-              Selected file: <span id="preview-name"></span>
-              (<span id="preview-type"></span>, <span id="preview-size"></span>)
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
       <section>
         <h2>Debug Log</h2>

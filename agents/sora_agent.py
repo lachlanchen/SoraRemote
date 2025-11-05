@@ -64,6 +64,10 @@ def build_chrome(headless: bool = False, chrome_binary: str | None = None):
     _strip_conflicting_chromedriver_from_path()
 
     # Rely on Selenium Manager to fetch the right driver
+    try:
+        options.set_capability('strictFileInteractability', False)
+    except Exception:
+        pass
     driver = webdriver.Chrome(options=options)
     try:
         yield driver
@@ -90,6 +94,10 @@ def build_chrome_attached(debugger_port: int, chrome_binary: str | None = None):
 
     _strip_conflicting_chromedriver_from_path()
 
+    try:
+        options.set_capability('strictFileInteractability', False)
+    except Exception:
+        pass
     driver = webdriver.Chrome(options=options)
     try:
         yield driver
@@ -351,11 +359,16 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
         time.sleep(0.25)
 
     if target is None:
-        # Try a generic injection: create a file input and attach to a known container
+        # Try a generic injection off-screen (won't flash in UI)
         try:
-            container = driver.find_element(By.TAG_NAME, 'body')
             driver.execute_script(
-                "var i=document.createElement('input'); i.type='file'; i.id='sora_injected_file'; i.style.opacity=1; i.style.display='block'; i.style.position='fixed'; i.style.left='-1000px'; document.body.appendChild(i);",
+                "var i=document.createElement('input');"
+                "i.type='file'; i.id='sora_injected_file';"
+                "i.setAttribute('tabindex','-1'); i.setAttribute('aria-hidden','true');"
+                "i.style.position='fixed'; i.style.left='-10000px'; i.style.top='-10000px';"
+                "i.style.width='1px'; i.style.height='1px'; i.style.opacity='0';"
+                "i.style.pointerEvents='none';"
+                "document.body.appendChild(i);",
             )
             target = driver.find_element(By.ID, 'sora_injected_file')
         except Exception:
@@ -363,8 +376,6 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
 
     if target is None:
         return False
-
-    reveal_input_file(driver, target)
 
     try:
         target.send_keys(path)
