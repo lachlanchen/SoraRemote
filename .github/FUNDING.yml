@@ -17,4 +17,9 @@ buy_me_a_coffee:
 thanks_dev: 
 
 # Custom links (up to 4)
-custom: ["https://github.com/sponsors/lachlanchen"]
+custom: [
+  "https://github.com/sponsors/lachlanchen",
+  "https://lazying.art",
+  "https://chat.lazying.art",
+  "https://onlyideas.art"
+]
