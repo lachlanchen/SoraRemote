@@ -262,7 +262,7 @@ def find_page_controls(driver, timeout: int = 10):
 
     x_plus = "//button[.//span[contains(@class,'sr-only') and normalize-space()='Attach media']]"
     x_story = "//button[normalize-space()='Storyboard']"
-    x_settings = "//button[@aria-label='Settings']"
+    x_settings = "//button[@aria-label='Settings' and (.//span[contains(normalize-space(),'Sora') or contains(normalize-space(),'Pro') or contains(normalize-space(),'Model')])]"
     x_create = "//button[.//span[contains(@class,'sr-only') and normalize-space()='Create video']]"
     # Multiple fallbacks for profile control
     x_profile_variants = [
@@ -697,6 +697,28 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
     ctrls = find_page_controls(driver, timeout=10)
     settings_btn = ctrls.get("settings")
 
+    if settings_btn is None:
+        # Fallback: find any visible settings button near composer
+        try:
+            candidates = driver.find_elements(By.XPATH, "//button[@aria-label='Settings']")
+        except Exception:
+            candidates = []
+        for cand in candidates:
+            try:
+                if not cand.is_displayed():
+                    continue
+            except Exception:
+                continue
+            try:
+                text = cand.text.strip()
+            except Exception:
+                text = ""
+            if any(token in text for token in ("Sora", "Portrait", "Landscape", "Model")):
+                settings_btn = cand
+                break
+        if settings_btn is None:
+            settings_btn = ctrls.get("settings")  # retry original value
+
     def is_menu_open() -> bool:
         try:
             driver.find_element(By.XPATH, "//div[@role='menu' and contains(@class,'popover')]")
@@ -725,16 +747,22 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
         parent_xp = f"//div[@role='menuitem' and .//div[contains(normalize-space(),'{menu_label}')]]"
         option_xp = f"//div[@role='menuitemradio' and .//*[normalize-space()='{option_label}']]"
 
-        try:
-            parent = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, parent_xp)))
-        except Exception:
+        def _option_checked() -> bool:
+            try:
+                opt_el = driver.find_element(By.XPATH, option_xp)
+            except Exception:
+                return False
+            state = (opt_el.get_attribute('aria-checked') or opt_el.get_attribute('data-state') or '').lower()
+            return state in ('true', 'checked')
+
+        for attempt in range(4):
+            if not ensure_menu_open():
+                return False
             try:
                 parent = driver.find_element(By.XPATH, parent_xp)
             except Exception:
-                return False
-
-        # Attempt to open submenu and click target option
-        for attempt in range(3):
+                time.sleep(0.2)
+                continue
             try:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", parent)
             except Exception:
@@ -750,7 +778,6 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
             try:
                 option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, option_xp)))
             except Exception:
-                # In case the submenu hasn't opened yet, retry
                 time.sleep(0.3)
                 continue
 
@@ -767,17 +794,15 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
                 except Exception:
                     continue
 
-            # Wait for the option to report checked state
             try:
-                WebDriverWait(driver, 3).until(
-                    lambda d: option.get_attribute('aria-checked') == 'true' or option.get_attribute('data-state') == 'checked'
-                )
+                WebDriverWait(driver, 3).until(lambda _d: _option_checked())
             except Exception:
-                pass
+                if not _option_checked():
+                    continue
 
             return True
 
-        return False
+        return _option_checked()
 
     if orientation:
         opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
