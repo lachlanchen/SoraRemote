@@ -8,6 +8,8 @@
   const scenesEl = qs('#scenes');
   const orientationEl = qs('#orientation');
   const durationEl = qs('#duration');
+  const modelEl = qs('#model');
+  const fileEl = qs('#fileinput');
 
   const defaultServer = localStorage.getItem('sora_server') || `${location.origin}`;
   serverInput.value = defaultServer;
@@ -70,8 +72,25 @@
   async function doSettings() {
     const orientation = orientationEl.value || null;
     const duration = durationEl.value ? parseInt(durationEl.value, 10) : null;
-    const data = await api('/api/settings', { method: 'POST', body: JSON.stringify({ orientation, duration }) });
+    const model = modelEl.value || null;
+    const data = await api('/api/settings', { method: 'POST', body: JSON.stringify({ orientation, duration, model }) });
     log(`settings: ${JSON.stringify(data)}`);
+  }
+
+  async function doUploadAndAttach() {
+    if (!fileEl.files || !fileEl.files.length) return log('No file selected');
+    const fd = new FormData();
+    fd.append('file', fileEl.files[0]);
+    const base = (localStorage.getItem('sora_server') || serverInput.value || '').replace(/\/$/, '');
+    const url = `${base}/api/upload`;
+    const res = await fetch(url, { method: 'POST', body: fd });
+    if (!res.ok) return log(`upload failed: ${res.status}`);
+    const data = await res.json();
+    log(`upload: ${JSON.stringify(data)}`);
+    if (!data.paths || !data.paths.length) return;
+    const path = data.paths[0];
+    const attach = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
+    log(`attach(uploaded): ${JSON.stringify(attach)}`);
   }
 
   async function doType(composeCreate) {
@@ -96,6 +115,7 @@
         if (action === 'type') return await doType(false);
         if (action === 'compose') return await doType(true);
         if (action === 'attach-path') return await doAttachPath();
+        if (action === 'upload-and-attach') return await doUploadAndAttach();
         if (action === 'apply-storyboard') return await doStoryboard();
         if (action === 'apply-settings') return await doSettings();
         if (['plus', 'storyboard', 'settings', 'create'].includes(action)) return await doClick(action);

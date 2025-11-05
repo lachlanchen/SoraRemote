@@ -265,6 +265,7 @@ class SettingsHandler(BaseHandler):
         body = json.loads(self.request.body or b"{}")
         orientation = body.get("orientation")
         duration = body.get("duration")
+        model = body.get("model")
         await HUB.emit("settings", {"orientation": orientation, "duration": duration})
         async with ACTION_LOCK:
             await _ensure_chrome_open(DEFAULT_URL)
@@ -276,7 +277,7 @@ class SettingsHandler(BaseHandler):
                         wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
                     except Exception:
                         pass
-                    return apply_settings(d, orientation=orientation, duration=duration, timeout=20)
+                    return apply_settings(d, orientation=orientation, duration=duration, model=model, timeout=20)
             res = await asyncio.get_event_loop().run_in_executor(None, _apply)
         self.write(json.dumps({"ok": True, "applied": res}))
 
@@ -290,6 +291,37 @@ class WSLogs(tornado.websocket.WebSocketHandler):
 
     def on_close(self):
         HUB.remove(self)
+
+
+class UploadHandler(tornado.web.RequestHandler):
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Methods", "POST,OPTIONS")
+        self.set_header("Access-Control-Allow-Headers", "content-type")
+
+    def options(self, *args, **kwargs):
+        self.set_status(204)
+        self.finish()
+
+    def post(self):
+        upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        saved = []
+        try:
+            for field, files in (self.request.files or {}).items():
+                for f in files:
+                    filename = f.get('filename') or 'upload.bin'
+                    # Simple unique name
+                    base, ext = os.path.splitext(filename)
+                    out = os.path.join(upload_dir, f"{base}_{int(tornado.ioloop.IOLoop.current().time()*1000)}{ext}")
+                    with open(out, 'wb') as w:
+                        w.write(f['body'])
+                    saved.append(out)
+        except Exception as e:
+            self.set_status(500)
+            return self.finish(json.dumps({"ok": False, "error": str(e)}))
+        self.set_header("Content-Type", "application/json")
+        self.finish(json.dumps({"ok": True, "paths": saved}))
 
 
 class SPAHandler(tornado.web.StaticFileHandler):
@@ -313,6 +345,7 @@ def make_app() -> tornado.web.Application:
         (r"/api/storyboard", StoryboardHandler),
         (r"/api/settings", SettingsHandler),
         (r"/api/compose", ComposeHandler),
+        (r"/api/upload", UploadHandler),
         (r"/ws", WSLogs),
         (r"/(.*)", SPAHandler, {"path": pwa_root, "default_filename": "index.html"}),
     ]

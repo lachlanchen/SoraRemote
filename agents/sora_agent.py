@@ -452,11 +452,11 @@ def fill_storyboard(driver, scenes: list[str], ensure_storyboard: bool = True, t
     return filled
 
 
-def apply_settings(driver, orientation: str | None = None, duration: int | None = None, timeout: int = 20) -> dict:
+def apply_settings(driver, orientation: str | None = None, duration: int | None = None, model: str | None = None, timeout: int = 20) -> dict:
     """Apply settings like orientation and duration via the settings menu.
     Returns a dict of attempted values.
     """
-    result = {"orientation": None, "duration": None}
+    result = {"orientation": None, "duration": None, "model": None}
     # Open settings menu
     ctrls = find_page_controls(driver, timeout=10)
     _ = click_safely(driver, ctrls.get("settings"), force=False)
@@ -515,6 +515,27 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
                         result["duration"] = int(duration)
                     except Exception:
                         pass
+
+    if model:
+        # Accept values like 'sora 2 pro', 'pro', 'sora 2'
+        m = str(model).strip().lower()
+        if 'pro' in m:
+            want = 'Sora 2 Pro'
+        else:
+            want = 'Sora 2'
+        if click_menu_item('Model'):
+            xp = f"//div[@role='menuitemradio' and .//span[normalize-space()='{want}']]"
+            try:
+                el = driver.find_element(By.XPATH, xp)
+                el.click()
+                result["model"] = want
+            except Exception:
+                try:
+                    el = driver.find_element(By.XPATH, xp)
+                    driver.execute_script("arguments[0].click();", el)
+                    result["model"] = want
+                except Exception:
+                    pass
 
     return result
 
