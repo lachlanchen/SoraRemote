@@ -12,6 +12,10 @@
   const fileEl = qs('#fileinput');
   const prevImg = qs('#preview-img');
   const prevVideo = qs('#preview-video');
+  const prevFallback = qs('#preview-fallback');
+  const prevName = qs('#preview-name');
+  const prevType = qs('#preview-type');
+  const prevSize = qs('#preview-size');
   let currentObjectUrl = null;
 
   const defaultServer = localStorage.getItem('sora_server') || `${location.origin}`;
@@ -110,6 +114,16 @@
     }
   }
 
+  function bytesToStr(n) {
+    if (!n && n !== 0) return '';
+    const i = n;
+    if (i < 1024) return `${i} B`;
+    const kb = i / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  }
+
   function clearPreview() {
     if (currentObjectUrl) {
       URL.revokeObjectURL(currentObjectUrl);
@@ -118,6 +132,7 @@
     // Reset elements and handlers so no broken frames flash
     prevImg.hidden = true;
     prevVideo.hidden = true;
+    prevFallback.hidden = true;
     prevImg.onload = null;
     prevImg.onerror = null;
     prevVideo.onloadeddata = null;
@@ -145,6 +160,9 @@
   async function showPreview(file) {
     clearPreview();
     if (!file) return;
+    prevName.textContent = file.name || '(unnamed)';
+    prevType.textContent = file.type || 'unknown';
+    prevSize.textContent = bytesToStr(file.size || 0);
 
     const name = (file.name || '').toLowerCase();
     const ext = name.split('.').pop() || '';
@@ -156,13 +174,15 @@
       if (['heic','heif'].includes(ext) || !file.type) {
         const dataUrl = await serverPreview(file);
         if (dataUrl) {
+          prevImg.hidden = true; // unhide after successful load
           prevImg.onload = () => {
+            prevFallback.hidden = true;
             prevVideo.hidden = true;
             prevImg.hidden = false;
           };
           prevImg.onerror = () => {
             prevImg.hidden = true;
-            log('Preview failed for image.');
+            prevFallback.hidden = false;
           };
           prevImg.src = dataUrl;
           return;
@@ -170,7 +190,9 @@
       }
       const url = URL.createObjectURL(file);
       currentObjectUrl = url;
+      prevImg.hidden = true; // unhide after onload to avoid broken image flash
       prevImg.onload = () => {
+        prevFallback.hidden = true;
         prevVideo.hidden = true;
         prevImg.hidden = false;
       };
@@ -179,17 +201,18 @@
         const dataUrl = await serverPreview(file);
         if (dataUrl) {
           prevImg.onload = () => {
+            prevFallback.hidden = true;
             prevVideo.hidden = true;
             prevImg.hidden = false;
           };
           prevImg.onerror = () => {
             prevImg.hidden = true;
-            log('Preview failed for image.');
+            prevFallback.hidden = false;
           };
           prevImg.src = dataUrl;
         } else {
           prevImg.hidden = true;
-          log('Preview not available for image.');
+          prevFallback.hidden = false;
         }
       };
       prevImg.src = url;
@@ -198,19 +221,24 @@
     if (isVideo) {
       const url = URL.createObjectURL(file);
       currentObjectUrl = url;
+      prevVideo.hidden = true; // unhide after metadata loads
       prevVideo.onloadeddata = () => {
+        prevFallback.hidden = true;
         prevImg.hidden = true;
         prevVideo.hidden = false;
       };
       prevVideo.onerror = () => {
         prevVideo.hidden = true;
-        log('Preview not available for video.');
+        prevFallback.hidden = false;
       };
       prevVideo.src = url;
       prevVideo.load();
       return;
     }
-    log('Preview not available for this file type.');
+    // Fallback
+    prevFallback.hidden = false;
+    prevImg.hidden = true;
+    prevVideo.hidden = true;
   }
 
   async function doType(composeCreate) {
