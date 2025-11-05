@@ -239,7 +239,14 @@ class AttachHandler(BaseHandler):
             await _ensure_chrome_open(DEFAULT_URL)
             def _attach():
                 with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
-                    d.get(DEFAULT_URL)
+                    try:
+                        current = d.current_url or ""
+                    except Exception:
+                        current = ""
+                    normalized_current = current.rstrip("/")
+                    normalized_target = DEFAULT_URL.rstrip("/")
+                    if not normalized_current.startswith(normalized_target):
+                        d.get(DEFAULT_URL)
                     wait_for_page_loaded(d, timeout=30)
                     try:
                         wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)

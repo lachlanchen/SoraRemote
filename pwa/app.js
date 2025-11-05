@@ -103,8 +103,8 @@
       const pathVal = filepathEl && filepathEl.value && filepathEl.value.trim();
       if (hasFile) return await doUploadAndAttach();
       if (pathVal) return await doAttachPath();
-      // Fallback to clicking the page's Plus (may open OS file dialog on the server)
-      return await doClick('plus');
+      log('Select a file or supply a path before using Plus.');
+      return;
     } catch (err) {
       log(`ERR(smart-plus): ${err.message}`);
     }

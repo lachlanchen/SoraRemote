@@ -421,28 +421,43 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
                 rem.click()
             except Exception:
                 driver.execute_script("arguments[0].click();", rem)
-            time.sleep(0.5)
+            # Wait briefly for input to re-enable
+            time.sleep(0.6)
         except Exception:
             pass
 
-    # Click plus first to ensure input is in DOM
+    # Click plus first to ensure correct input is in DOM (optional)
     if click_plus:
         ctrls = find_page_controls(driver, timeout=10)
         _ = click_safely(driver, ctrls.get("plus"), force=False)
         time.sleep(0.5)
 
-    # Wait for an input[type=file] to exist
+    # Wait for an enabled input[type=file] whose accept matches the file
     end = time.time() + timeout
     target = None
     accept = ""
     while time.time() < end and target is None:
         metas = list_file_inputs_with_meta(driver)
+        # Prefer inputs with accept that explicitly allow the file
+        candidates: List[Tuple[object, str]] = []
+        fallbacks: List[Tuple[object, str]] = []
         for el, disabled, acc in metas:
-            if not disabled:
-                target = el
-                accept = acc or ""
-                break
-        time.sleep(0.25)
+            if disabled:
+                continue
+            a = acc or ""
+            if a:
+                if _accept_allows_path(a, path):
+                    candidates.append((el, a))
+            else:
+                # Inputs without accept can work but may be decoys
+                fallbacks.append((el, a))
+        if candidates:
+            target, accept = candidates[0]
+            break
+        if fallbacks:
+            target, accept = fallbacks[0]
+            break
+        time.sleep(0.2)
 
     if target is None:
         # Try a generic injection off-screen (won't flash in UI)
@@ -467,6 +482,8 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
     attach_path = _convert_image_if_needed(path, accept)
 
     try:
+        # Ensure the input is interactable (some frameworks hide via CSS)
+        reveal_input_file(driver, target)
         target.send_keys(attach_path)
         try:
             driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", target)
@@ -475,8 +492,15 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
     except Exception:
         return False
 
-    # Small wait for UI to react
-    time.sleep(1.0)
+    # Wait briefly for UI confirmation (Remove media button re-appears)
+    end_confirm = time.time() + 8.0
+    while time.time() < end_confirm:
+        try:
+            _ = driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Remove media']]")
+            return True
+        except Exception:
+            time.sleep(0.3)
+    # Fallback: assume success if no error thrown
     return True
 
 
