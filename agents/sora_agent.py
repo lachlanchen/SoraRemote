@@ -15,6 +15,18 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from typing import List, Tuple
+
+# Optional image preview/conversion support
+try:
+    import pillow_heif  # type: ignore
+    pillow_heif.register_heif_opener()
+except Exception:
+    pillow_heif = None
+try:
+    from PIL import Image  # type: ignore
+except Exception:
+    Image = None
 
 
 def _strip_conflicting_chromedriver_from_path() -> None:
@@ -325,6 +337,21 @@ def find_file_inputs(driver):
         return []
 
 
+def list_file_inputs_with_meta(driver) -> List[Tuple[object, bool, str]]:
+    out: List[Tuple[object, bool, str]] = []
+    for el in find_file_inputs(driver):
+        try:
+            disabled = el.get_attribute("disabled") is not None
+        except Exception:
+            disabled = False
+        try:
+            accept = el.get_attribute("accept") or ""
+        except Exception:
+            accept = ""
+        out.append((el, disabled, accept))
+    return out
+
+
 def reveal_input_file(driver, el):
     try:
         driver.execute_script(
@@ -335,12 +362,66 @@ def reveal_input_file(driver, el):
         pass
 
 
-def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: int = 20) -> bool:
+def _accept_allows_path(accept: str, path: str) -> bool:
+    if not accept:
+        return True
+    ext = os.path.splitext(path)[1].lower().lstrip('.')
+    mime_map = {
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'webp': 'image/webp',
+        'heic': 'image/heic', 'heif': 'image/heif', 'avif': 'image/avif',
+    }
+    file_mime = mime_map.get(ext, '')
+    parts = [p.strip().lower() for p in accept.split(',') if p.strip()]
+    if not parts:
+        return True
+    if file_mime and file_mime in parts:
+        return True
+    if any(p.startswith('image/') for p in parts) and ext in ('jpg','jpeg','png','webp','heic','heif','avif'):
+        return True
+    return any(ext and ext in p for p in parts)
+
+
+def _convert_image_if_needed(path: str, accept: str) -> str:
+    try:
+        if _accept_allows_path(accept, path):
+            return path
+        if Image is None:
+            return path
+        parts = [p.strip().lower() for p in accept.split(',') if p.strip()]
+        fmt, out_ext = ('PNG', 'png')
+        if 'image/jpeg' in parts:
+            fmt, out_ext = ('JPEG', 'jpg')
+        im = Image.open(path)
+        if im.mode not in ('RGB', 'RGBA'):
+            im = im.convert('RGB')
+        out_dir = os.path.join(os.getcwd(), 'uploads', 'converted')
+        os.makedirs(out_dir, exist_ok=True)
+        base = os.path.splitext(os.path.basename(path))[0]
+        out_path = os.path.join(out_dir, f"{base}_converted.{out_ext}")
+        im.save(out_path, format=fmt, optimize=True)
+        return out_path
+    except Exception:
+        return path
+
+
+def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: int = 20, clear_before: bool = True) -> bool:
     if not os.path.isabs(path):
         # Normalize to absolute path within server
         path = os.path.abspath(path)
     if not os.path.exists(path):
         raise FileNotFoundError(f"File not found: {path}")
+
+    # Optionally clear existing media to ensure file input is enabled
+    if clear_before:
+        try:
+            rem = driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Remove media']]")
+            try:
+                rem.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", rem)
+            time.sleep(0.5)
+        except Exception:
+            pass
 
     # Click plus first to ensure input is in DOM
     if click_plus:
@@ -351,10 +432,15 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
     # Wait for an input[type=file] to exist
     end = time.time() + timeout
     target = None
+    accept = ""
     while time.time() < end and target is None:
-        inputs = find_file_inputs(driver)
-        if inputs:
-            target = inputs[0]
+        metas = list_file_inputs_with_meta(driver)
+        for el, disabled, acc in metas:
+            if not disabled:
+                target = el
+                accept = acc or ""
+                break
+        if target is not None:
             break
         time.sleep(0.25)
 
@@ -377,8 +463,11 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
     if target is None:
         return False
 
+    # Convert if needed for this input's accept list
+    attach_path = _convert_image_if_needed(path, accept)
+
     try:
-        target.send_keys(path)
+        target.send_keys(attach_path)
         try:
             driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", target)
         except Exception:
