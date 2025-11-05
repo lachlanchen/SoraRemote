@@ -206,25 +206,70 @@ class DescribeHandler(BaseHandler):
         body = json.loads(self.request.body or b"{}")
         text = body.get("text") or ""
         await HUB.emit("describe", {"len": len(text)})
+
         async with ACTION_LOCK:
             await _ensure_chrome_open(DEFAULT_URL)
+
             def _describe():
                 with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
-                    d.get(DEFAULT_URL)
-                    wait_for_page_loaded(d, timeout=30)
+                    try:
+                        current = d.current_url or ""
+                    except Exception:
+                        current = ""
+                    normalized_current = current.rstrip("/")
+                    normalized_target = DEFAULT_URL.rstrip("/")
+                    if not normalized_current.startswith(normalized_target):
+                        d.get(DEFAULT_URL)
+                        wait_for_page_loaded(d, timeout=30)
+                    else:
+                        # Ensure the page is stable before interacting
+                        try:
+                            wait_for_page_loaded(d, timeout=30)
+                        except Exception:
+                            pass
+
                     try:
                         wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
                     except Exception:
                         pass
-                    type_into_selector(
-                        d,
+
+                    selectors = [
                         'textarea[placeholder="Optionally describe your video..."]',
-                        text,
-                        timeout=30,
-                    )
-                    return True
+                        'textarea[placeholder*="Optionally describe your video"]',
+                        'textarea[placeholder*="Optionally describe"]',
+                    ]
+
+                    for sel in selectors:
+                        try:
+                            type_into_selector(d, sel, text, timeout=20)
+                            return True
+                        except Exception:
+                            continue
+
+                    # Fallback: query via JS (covers dynamically generated IDs)
+                    try:
+                        el = d.execute_script(
+                            "return Array.from(document.querySelectorAll('textarea')).find(t => (t.getAttribute('placeholder') || '').toLowerCase().includes('optionally describe your video'));"
+                        )
+                        if el is not None:
+                            d.execute_script(
+                                "arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles:true}));",
+                                el,
+                                text,
+                            )
+                            return True
+                    except Exception:
+                        pass
+
+                    return False
+
             ok = await asyncio.get_event_loop().run_in_executor(None, _describe)
-        self.write(json.dumps({"ok": ok}))
+
+        await HUB.emit("describe_result", {"ok": bool(ok)})
+        if ok:
+            self.write(json.dumps({"ok": True}))
+        else:
+            self.write(json.dumps({"ok": False, "error": "description textarea not found"}))
 
 
 class ComposeHandler(BaseHandler):
