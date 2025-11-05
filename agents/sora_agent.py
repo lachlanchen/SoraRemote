@@ -7,6 +7,7 @@ import subprocess
 import shutil
 import base64
 import mimetypes
+import re
 import urllib.request
 import urllib.error
 from contextlib import contextmanager
@@ -748,18 +749,22 @@ def apply_settings(
         time.sleep(0.2)
         return is_menu_open()
 
-    def select_menu_option(section_labels: list[str], option_labels: list[str]) -> bool:
+
+    def select_menu_option(section_labels: list[str], option_labels: list[str]) -> str | None:
         if not ensure_menu_open():
-            return False
+            return None
 
         section_labels_norm = [str(l).strip().lower() for l in section_labels if str(l).strip()]
         option_labels_norm = [str(l).strip().lower() for l in option_labels if str(l).strip()]
         if not section_labels_norm or not option_labels_norm:
-            return False
+            return None
 
-        parent_selected = False
+        lower_expr = "translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+
         submenu_root = None
-        for _ in range(4):
+        parent_selected = None
+
+        for attempt in range(4):
             try:
                 menu_items = driver.find_elements(By.XPATH, "//div[@role='menuitem']")
             except Exception:
@@ -776,86 +781,100 @@ def apply_settings(
                         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", item)
                     except Exception:
                         pass
-                    time.sleep(0.15)
+                    time.sleep(0.1)
                     try:
                         ActionChains(driver).move_to_element(item).pause(0.05).click().perform()
                     except Exception:
                         try:
-                            driver.execute_script("arguments[0].click();", item)
+                            item.click()
                         except Exception:
-                            continue
-                    parent_selected = True
+                            try:
+                                driver.execute_script("arguments[0].click();", item)
+                            except Exception:
+                                continue
+                    parent_selected = item
                     submenu_id = item.get_attribute("aria-controls")
                     if submenu_id:
                         try:
-                            submenu_root = WebDriverWait(driver, 3).until(
+                            submenu_root = WebDriverWait(driver, 4).until(
                                 EC.presence_of_element_located((By.ID, submenu_id))
+                            )
+                            WebDriverWait(driver, 4).until(
+                                lambda d: (d.find_element(By.ID, submenu_id).get_attribute("data-state") or "").lower() == "open"
                             )
                         except Exception:
                             submenu_root = None
                     break
-            if parent_selected:
+            if parent_selected is not None:
                 break
-            time.sleep(0.25)
+            time.sleep(0.2)
 
-        if not parent_selected:
-            return False
+        if parent_selected is None:
+            return None
 
-        time.sleep(0.3)
+        time.sleep(0.2)
 
-        for _ in range(4):
+        def locate_option(opt_label: str):
+            opt_label = opt_label.strip().lower()
+            if submenu_root is not None and submenu_root.get_attribute("id"):
+                base_xpath = f"//*[@id='{submenu_root.get_attribute('id')}']"
+            else:
+                base_xpath = ""
+            option_xpath = (
+                f"{base_xpath}//div[@role='menuitemradio' and contains({lower_expr}, '{opt_label}')]"
+            )
             try:
-                if submenu_root is not None:
-                    radios = submenu_root.find_elements(By.CSS_SELECTOR, "div[role='menuitemradio']")
-                else:
-                    radios = driver.find_elements(By.XPATH, "//div[@role='menuitemradio']")
+                return WebDriverWait(driver, 4).until(
+                    EC.element_to_be_clickable((By.XPATH, option_xpath))
+                )
             except Exception:
-                radios = []
-            target = None
-            for radio in radios:
-                try:
-                    rtext = (radio.text or "").strip().lower()
-                except Exception:
-                    rtext = ""
-                if not rtext:
-                    continue
-                if any(lbl == rtext or lbl in rtext for lbl in option_labels_norm):
-                    target = radio
-                    break
-            if target is None:
-                time.sleep(0.3)
-                continue
+                return None
+
+        target = None
+        for opt in option_labels_norm:
+            target = locate_option(opt)
+            if target is not None:
+                break
+
+        if target is None:
+            return None
+
+        try:
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target)
+        except Exception:
+            pass
+        time.sleep(0.1)
+        try:
+            ActionChains(driver).move_to_element(target).pause(0.05).click().perform()
+        except Exception:
             try:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target)
-            except Exception:
-                pass
-            time.sleep(0.1)
-            try:
-                ActionChains(driver).move_to_element(target).pause(0.05).click().perform()
+                target.click()
             except Exception:
                 try:
                     driver.execute_script("arguments[0].click();", target)
                 except Exception:
-                    target = None
-            if target is None:
-                continue
+                    return None
 
-            end = time.time() + 3.0
-            while time.time() < end:
-                try:
-                    state = (target.get_attribute('aria-checked') or target.get_attribute('data-state') or '').lower()
-                    if state in ('true', 'checked'):
-                        return True
-                except Exception:
-                    break
-                time.sleep(0.15)
+        end = time.time() + 3.0
+        while time.time() < end:
+            try:
+                state = (target.get_attribute('aria-checked') or target.get_attribute('data-state') or '').lower()
+                if state in ('true', 'checked'):
+                    return (target.text or '').strip() or None
+            except Exception:
+                break
+            time.sleep(0.1)
 
-        return False
+        state = (target.get_attribute('aria-checked') or target.get_attribute('data-state') or '').lower()
+        if state in ('true', 'checked'):
+            return (target.text or '').strip() or None
+        return None
 
     if orientation:
         opt = 'portrait' if str(orientation).lower().startswith('p') else 'landscape'
-        if select_menu_option(['orientation'], [opt]):
-            result["orientation"] = opt.title()
+        selected = select_menu_option(['orientation'], [opt])
+        if selected:
+            result["orientation"] = selected
 
     if duration is not None:
         seconds = int(duration)
@@ -865,8 +884,13 @@ def apply_settings(
             f"{seconds} sec",
             f"{seconds} second",
         ]
-        if select_menu_option(['duration', 'length'], labels):
-            result["duration"] = seconds
+        selected = select_menu_option(['duration', 'length'], labels)
+        if selected:
+            match = re.search(r"(\d+)", selected)
+            if match:
+                result["duration"] = int(match.group(1))
+            else:
+                result["duration"] = selected
 
     if model:
         # Accept values like 'sora 2 pro', 'pro', 'sora 2'
@@ -875,8 +899,9 @@ def apply_settings(
             want = 'sora 2 pro'
         else:
             want = 'sora 2'
-        if select_menu_option(['model'], [want]):
-            result["model"] = want.title()
+        selected = select_menu_option(['model'], [want])
+        if selected:
+            result["model"] = selected
 
     if resolution:
         res = str(resolution).strip().lower()
@@ -885,8 +910,9 @@ def apply_settings(
             labels.extend(['high quality', 'high'])
         elif res.startswith('standard'):
             labels.extend(['standard'])
-        if select_menu_option(['quality', 'resolution'], labels):
-            result["resolution"] = res.title()
+        selected = select_menu_option(['quality', 'resolution'], labels)
+        if selected:
+            result["resolution"] = selected
 
     # Close menu if still open (best-effort)
     if is_menu_open():
