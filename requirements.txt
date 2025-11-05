@@ -1,2 +1,4 @@
 selenium>=4.17.2
 tornado>=6.4
+Pillow>=9.4.0
+pillow-heif>=0.16.0

@@ -122,7 +122,23 @@
     prevVideo.removeAttribute('src');
   }
 
-  function showPreview(file) {
+  async function serverPreview(file) {
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const base = (localStorage.getItem('sora_server') || serverInput.value || '').replace(/\/$/, '');
+      const url = `${base}/api/preview`;
+      const res = await fetch(url, { method: 'POST', body: fd });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || !data.ok || !data.data_url) return null;
+      return data.data_url;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function showPreview(file) {
     clearPreview();
     if (!file) return;
     prevName.textContent = file.name || '(unnamed)';
@@ -131,25 +147,46 @@
 
     const name = (file.name || '').toLowerCase();
     const ext = name.split('.').pop() || '';
-    const url = URL.createObjectURL(file);
-    currentObjectUrl = url;
-
     const isImage = (file.type && file.type.startsWith('image/')) || ['heic','heif','avif','jpg','jpeg','png','webp'].includes(ext);
     const isVideo = (file.type && file.type.startsWith('video/')) || ['mp4','webm','mov'].includes(ext);
 
     if (isImage) {
+      // HEIC/HEIF usually not supported in browser; ask server to generate preview PNG
+      if (['heic','heif'].includes(ext) || !file.type) {
+        const dataUrl = await serverPreview(file);
+        if (dataUrl) {
+          prevImg.hidden = false;
+          prevImg.src = dataUrl;
+          prevFallback.hidden = true;
+          prevVideo.hidden = true;
+          return;
+        }
+      }
+      const url = URL.createObjectURL(file);
+      currentObjectUrl = url;
       prevImg.hidden = false;
       prevImg.src = url;
       prevImg.onload = () => { /* ok */ };
-      prevImg.onerror = () => {
-        prevImg.hidden = true;
-        prevFallback.hidden = false;
+      prevImg.onerror = async () => {
+        // Fallback to server preview if direct render fails
+        const dataUrl = await serverPreview(file);
+        if (dataUrl) {
+          prevImg.hidden = false;
+          prevImg.src = dataUrl;
+          prevFallback.hidden = true;
+          prevVideo.hidden = true;
+        } else {
+          prevImg.hidden = true;
+          prevFallback.hidden = false;
+        }
       };
       prevFallback.hidden = true;
       prevVideo.hidden = true;
       return;
     }
     if (isVideo) {
+      const url = URL.createObjectURL(file);
+      currentObjectUrl = url;
       prevVideo.hidden = false;
       prevVideo.src = url;
       prevVideo.load();

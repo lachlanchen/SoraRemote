@@ -1,5 +1,7 @@
 import asyncio
 import sys
+import io
+import base64
 import json
 import os
 import signal
@@ -29,6 +31,17 @@ from agents.sora_agent import (
     fill_storyboard,
     apply_settings,
 )
+
+# Optional image preview support (HEIC/HEIF)
+try:
+    import pillow_heif  # type: ignore
+    pillow_heif.register_heif_opener()
+except Exception:
+    pillow_heif = None
+try:
+    from PIL import Image  # type: ignore
+except Exception:
+    Image = None
 
 
 # Config via env
@@ -324,6 +337,44 @@ class UploadHandler(tornado.web.RequestHandler):
         self.finish(json.dumps({"ok": True, "paths": saved}))
 
 
+class PreviewHandler(tornado.web.RequestHandler):
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Methods", "POST,OPTIONS")
+        self.set_header("Access-Control-Allow-Headers", "content-type")
+
+    def options(self, *args, **kwargs):
+        self.set_status(204)
+        self.finish()
+
+    def post(self):
+        if Image is None:
+            self.set_status(500)
+            return self.finish(json.dumps({"ok": False, "error": "Pillow not installed"}))
+        files = (self.request.files or {}).get('file') or []
+        if not files:
+            self.set_status(400)
+            return self.finish(json.dumps({"ok": False, "error": "file required"}))
+        f = files[0]
+        body = f.get('body') or b''
+        try:
+            im = Image.open(io.BytesIO(body))
+            # Convert to RGB if needed
+            if im.mode not in ('RGB', 'RGBA'):
+                im = im.convert('RGB')
+            # Downsize for preview
+            im.thumbnail((1024, 1024))
+            out = io.BytesIO()
+            im.save(out, format='PNG', optimize=True)
+            b64 = base64.b64encode(out.getvalue()).decode('ascii')
+            data_url = f"data:image/png;base64,{b64}"
+            self.set_header("Content-Type", "application/json")
+            return self.finish(json.dumps({"ok": True, "data_url": data_url}))
+        except Exception as e:
+            self.set_status(500)
+            return self.finish(json.dumps({"ok": False, "error": str(e)}))
+
+
 class SPAHandler(tornado.web.StaticFileHandler):
     def parse_url_path(self, url_path: str) -> str:
         if not url_path or url_path == "/":
@@ -346,6 +397,7 @@ def make_app() -> tornado.web.Application:
         (r"/api/settings", SettingsHandler),
         (r"/api/compose", ComposeHandler),
         (r"/api/upload", UploadHandler),
+        (r"/api/preview", PreviewHandler),
         (r"/ws", WSLogs),
         (r"/(.*)", SPAHandler, {"path": pwa_root, "default_filename": "index.html"}),
     ]
