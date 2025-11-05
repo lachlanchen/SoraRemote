@@ -65,7 +65,7 @@
   async function doAttachPath() {
     const path = filepathEl.value.trim();
     if (!path) return log('No filepath provided');
-    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
+    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: false }) });
     log(`attach: ${JSON.stringify(data)}`);
   }
 
@@ -96,8 +96,22 @@
     log(`upload: ${JSON.stringify(data)}`);
     if (!data.paths || !data.paths.length) return;
     const path = data.paths[0];
-    const attach = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
+    const attach = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: false }) });
     log(`attach(uploaded): ${JSON.stringify(attach)}`);
+  }
+
+  async function doSmartPlus() {
+    try {
+      // Prefer directly sending a selected file, then a typed path.
+      const hasFile = fileEl && fileEl.files && fileEl.files.length > 0;
+      const pathVal = filepathEl && filepathEl.value && filepathEl.value.trim();
+      if (hasFile) return await doUploadAndAttach();
+      if (pathVal) return await doAttachPath();
+      // Fallback to clicking the page's Plus (may open OS file dialog on the server)
+      return await doClick('plus');
+    } catch (err) {
+      log(`ERR(smart-plus): ${err.message}`);
+    }
   }
 
   function bytesToStr(n) {
@@ -115,9 +129,14 @@
       URL.revokeObjectURL(currentObjectUrl);
       currentObjectUrl = null;
     }
+    // Reset elements and handlers so no broken frames flash
     prevImg.hidden = true;
     prevVideo.hidden = true;
     prevFallback.hidden = true;
+    prevImg.onload = null;
+    prevImg.onerror = null;
+    prevVideo.onloadeddata = null;
+    prevVideo.onerror = null;
     prevImg.removeAttribute('src');
     prevVideo.removeAttribute('src');
   }
@@ -155,43 +174,65 @@
       if (['heic','heif'].includes(ext) || !file.type) {
         const dataUrl = await serverPreview(file);
         if (dataUrl) {
-          prevImg.hidden = false;
+          prevImg.hidden = true; // unhide after successful load
+          prevImg.onload = () => {
+            prevFallback.hidden = true;
+            prevVideo.hidden = true;
+            prevImg.hidden = false;
+          };
+          prevImg.onerror = () => {
+            prevImg.hidden = true;
+            prevFallback.hidden = false;
+          };
           prevImg.src = dataUrl;
-          prevFallback.hidden = true;
-          prevVideo.hidden = true;
           return;
         }
       }
       const url = URL.createObjectURL(file);
       currentObjectUrl = url;
-      prevImg.hidden = false;
-      prevImg.src = url;
-      prevImg.onload = () => { /* ok */ };
+      prevImg.hidden = true; // unhide after onload to avoid broken image flash
+      prevImg.onload = () => {
+        prevFallback.hidden = true;
+        prevVideo.hidden = true;
+        prevImg.hidden = false;
+      };
       prevImg.onerror = async () => {
         // Fallback to server preview if direct render fails
         const dataUrl = await serverPreview(file);
         if (dataUrl) {
-          prevImg.hidden = false;
+          prevImg.onload = () => {
+            prevFallback.hidden = true;
+            prevVideo.hidden = true;
+            prevImg.hidden = false;
+          };
+          prevImg.onerror = () => {
+            prevImg.hidden = true;
+            prevFallback.hidden = false;
+          };
           prevImg.src = dataUrl;
-          prevFallback.hidden = true;
-          prevVideo.hidden = true;
         } else {
           prevImg.hidden = true;
           prevFallback.hidden = false;
         }
       };
-      prevFallback.hidden = true;
-      prevVideo.hidden = true;
+      prevImg.src = url;
       return;
     }
     if (isVideo) {
       const url = URL.createObjectURL(file);
       currentObjectUrl = url;
-      prevVideo.hidden = false;
+      prevVideo.hidden = true; // unhide after metadata loads
+      prevVideo.onloadeddata = () => {
+        prevFallback.hidden = true;
+        prevImg.hidden = true;
+        prevVideo.hidden = false;
+      };
+      prevVideo.onerror = () => {
+        prevVideo.hidden = true;
+        prevFallback.hidden = false;
+      };
       prevVideo.src = url;
       prevVideo.load();
-      prevFallback.hidden = true;
-      prevImg.hidden = true;
       return;
     }
     // Fallback
@@ -225,7 +266,8 @@
         if (action === 'upload-and-attach') return await doUploadAndAttach();
         if (action === 'apply-storyboard') return await doStoryboard();
         if (action === 'apply-settings') return await doSettings();
-        if (['plus', 'storyboard', 'settings', 'create'].includes(action)) return await doClick(action);
+        if (action === 'plus') return await doSmartPlus();
+        if (['storyboard', 'settings', 'create'].includes(action)) return await doClick(action);
       } catch (err) {
         log(`ERR: ${err.message}`);
       }

@@ -368,6 +368,10 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
 
     try:
         target.send_keys(path)
+        try:
+            driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", target)
+        except Exception:
+            pass
     except Exception:
         return False
 
