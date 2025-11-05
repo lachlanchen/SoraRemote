@@ -427,9 +427,12 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
             pass
 
     # Click plus first to ensure correct input is in DOM (optional)
+    # Also helpful to guarantee the real input (wired to composer) exists.
+    plus_el = None
     if click_plus:
         ctrls = find_page_controls(driver, timeout=10)
-        _ = click_safely(driver, ctrls.get("plus"), force=False)
+        plus_el = ctrls.get("plus")
+        _ = click_safely(driver, plus_el, force=False)
         time.sleep(0.5)
 
     # Wait for an enabled input[type=file] whose accept matches the file
@@ -437,6 +440,18 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
     target = None
     accept = ""
     while time.time() < end and target is None:
+        # If we know the plus button, try the first following input near it
+        if plus_el is not None:
+            try:
+                near = driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Attach media']]/following::input[@type='file'][1]")
+                if near.get_attribute('disabled') is None:
+                    acc = (near.get_attribute('accept') or '').strip()
+                    if not acc or _accept_allows_path(acc, path):
+                        target, accept = near, acc
+                        break
+            except Exception:
+                pass
+
         metas = list_file_inputs_with_meta(driver)
         # Prefer inputs with accept that explicitly allow the file
         candidates: List[Tuple[object, str]] = []
@@ -492,16 +507,48 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
     except Exception:
         return False
 
-    # Wait briefly for UI confirmation (Remove media button re-appears)
-    end_confirm = time.time() + 8.0
-    while time.time() < end_confirm:
+    # Wait for UI confirmation (Remove media button appears)
+    def _has_remove():
         try:
-            _ = driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Remove media']]")
+            driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Remove media']]")
             return True
         except Exception:
-            time.sleep(0.3)
-    # Fallback: assume success if no error thrown
-    return True
+            return False
+    def _files_selected(el) -> bool:
+        try:
+            return bool(driver.execute_script("return arguments[0].files && arguments[0].files.length > 0;", el))
+        except Exception:
+            return False
+
+    end_confirm = time.time() + 8.0
+    while time.time() < end_confirm:
+        if _has_remove() or _files_selected(target):
+            return True
+        time.sleep(0.3)
+
+    # Retry once via explicit plus->nearest input path if confirmation not seen
+    try:
+        if plus_el is not None:
+            _ = click_safely(driver, plus_el, force=False)
+            time.sleep(0.4)
+            near = driver.find_element(By.XPATH, "//button[.//span[contains(@class,'sr-only') and normalize-space()='Attach media']]/following::input[@type='file'][1]")
+            if near.get_attribute('disabled') is None:
+                reveal_input_file(driver, near)
+                near.send_keys(attach_path)
+                try:
+                    driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", near)
+                except Exception:
+                    pass
+                end_confirm = time.time() + 6.0
+                while time.time() < end_confirm:
+                    if _has_remove() or _files_selected(near):
+                        return True
+                    time.sleep(0.3)
+    except Exception:
+        pass
+
+    # Last resort: return False to signal UI likely showed an error
+    return False
 
 
 def fill_storyboard(driver, scenes: list[str], ensure_storyboard: bool = True, timeout: int = 30) -> int:

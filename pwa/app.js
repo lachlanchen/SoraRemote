@@ -61,7 +61,7 @@
   async function doAttachPath() {
     const path = filepathEl.value.trim();
     if (!path) return log('No filepath provided');
-    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: false }) });
+    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
     log(`attach: ${JSON.stringify(data)}`);
   }
 
@@ -92,7 +92,7 @@
     log(`upload: ${JSON.stringify(data)}`);
     if (!data.paths || !data.paths.length) return;
     const path = data.paths[0];
-    const attach = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: false }) });
+    const attach = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
     log(`attach(uploaded): ${JSON.stringify(attach)}`);
   }
 

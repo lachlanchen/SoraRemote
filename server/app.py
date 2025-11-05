@@ -50,6 +50,7 @@ USER_DATA_DIR = os.environ.get("SORA_USER_DATA_DIR", os.path.expanduser(f"~/chro
 DISPLAY = os.environ.get("SORA_DISPLAY", None)
 LISTEN_PORT = int(os.environ.get("SORA_API_PORT", "8791"))
 DEFAULT_URL = os.environ.get("SORA_URL", "https://sora.chatgpt.com/explore")
+UPLOADS_DIR = os.environ.get("SORA_UPLOADS_DIR")  # Optional override (e.g., $HOME/Downloads)
 
 
 # Simple broadcast hub for live logs to PWA
@@ -254,6 +255,7 @@ class AttachHandler(BaseHandler):
                         pass
                     return attach_media_by_path(d, path, click_plus=click_plus, timeout=20)
             ok = await asyncio.get_event_loop().run_in_executor(None, _attach)
+        await HUB.emit("attach_result", {"ok": bool(ok)})
         self.write(json.dumps({"ok": bool(ok)}))
 
 
@@ -324,7 +326,10 @@ class UploadHandler(tornado.web.RequestHandler):
         self.finish()
 
     def post(self):
-        upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
+        if UPLOADS_DIR:
+            upload_dir = os.path.expanduser(UPLOADS_DIR)
+        else:
+            upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
         os.makedirs(upload_dir, exist_ok=True)
         saved = []
         try:
