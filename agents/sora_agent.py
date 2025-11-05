@@ -17,6 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 from typing import List, Tuple
 
 try:
@@ -747,7 +748,19 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
         parent_xp = f"//div[@role='menuitem' and .//div[contains(normalize-space(),'{menu_label}')]]"
         option_xp = f"//div[@role='menuitemradio' and .//*[normalize-space()='{option_label}']]"
 
-        def _option_checked() -> bool:
+        def hover(el):
+            try:
+                ActionChains(driver).move_to_element(el).pause(0.05).perform()
+            except Exception:
+                try:
+                    driver.execute_script(
+                        "arguments[0].dispatchEvent(new MouseEvent('pointerover', {bubbles:true, composed:true}));",
+                        el,
+                    )
+                except Exception:
+                    pass
+
+        def option_checked() -> bool:
             try:
                 opt_el = driver.find_element(By.XPATH, option_xp)
             except Exception:
@@ -755,7 +768,7 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
             state = (opt_el.get_attribute('aria-checked') or opt_el.get_attribute('data-state') or '').lower()
             return state in ('true', 'checked')
 
-        for attempt in range(4):
+        for attempt in range(6):
             if not ensure_menu_open():
                 return False
             try:
@@ -763,26 +776,32 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
             except Exception:
                 time.sleep(0.2)
                 continue
+
             try:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", parent)
             except Exception:
                 pass
-            try:
-                parent.click()
-            except Exception:
-                try:
-                    driver.execute_script("arguments[0].click();", parent)
-                except Exception:
-                    pass
+
+            hover(parent)
+            time.sleep(0.15)
 
             try:
-                option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, option_xp)))
+                option = WebDriverWait(driver, 5).until(
+                    EC.visibility_of_element_located((By.XPATH, option_xp))
+                )
             except Exception:
-                time.sleep(0.3)
+                time.sleep(0.2)
                 continue
 
+            # Move to option to ensure it is active and clickable
+            hover(option)
             try:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", option)
+            except Exception:
+                pass
+
+            try:
+                WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, option_xp)))
             except Exception:
                 pass
 
@@ -795,14 +814,15 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
                     continue
 
             try:
-                WebDriverWait(driver, 3).until(lambda _d: _option_checked())
+                WebDriverWait(driver, 2).until(lambda _d: option_checked())
             except Exception:
-                if not _option_checked():
+                if not option_checked():
+                    time.sleep(0.2)
                     continue
 
             return True
 
-        return _option_checked()
+        return option_checked()
 
     if orientation:
         opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
