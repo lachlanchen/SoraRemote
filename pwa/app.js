@@ -9,6 +9,7 @@
   const orientationEl = qs('#orientation');
   const durationEl = qs('#duration');
   const modelEl = qs('#model');
+  const resolutionEl = qs('#resolution');
   const fileEl = qs('#fileinput');
   const mediaDescEl = qs('#media-desc');
   const prevImg = qs('#preview-img');
@@ -80,12 +81,29 @@
     log(`storyboard: ${JSON.stringify(data)}`);
   }
 
-  async function doSettings() {
-    const orientation = orientationEl.value || null;
-    const duration = durationEl.value ? parseInt(durationEl.value, 10) : null;
+  async function sendSettings(payload, label) {
+    const data = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
+    log(`${label}: ${JSON.stringify(data)}`);
+  }
+
+  async function doModel() {
     const model = modelEl.value || null;
-    const data = await api('/api/settings', { method: 'POST', body: JSON.stringify({ orientation, duration, model }) });
-    log(`settings: ${JSON.stringify(data)}`);
+    await sendSettings({ model }, 'model');
+  }
+
+  async function doOrientation() {
+    const orientation = orientationEl.value || null;
+    await sendSettings({ orientation }, 'orientation');
+  }
+
+  async function doDuration() {
+    const duration = durationEl.value ? parseInt(durationEl.value, 10) : null;
+    await sendSettings({ duration }, 'duration');
+  }
+
+  async function doResolution() {
+    const resolution = resolutionEl ? resolutionEl.value || null : null;
+    await sendSettings({ resolution }, 'resolution');
   }
 
   async function doDescribe() {
@@ -256,7 +274,10 @@
         if (action === 'attach-path') return await doAttachPath();
         if (action === 'upload-and-attach') return await doUploadAndAttach();
         if (action === 'apply-storyboard') return await doStoryboard();
-        if (action === 'apply-settings') return await doSettings();
+        if (action === 'apply-model') return await doModel();
+        if (action === 'apply-orientation') return await doOrientation();
+        if (action === 'apply-duration') return await doDuration();
+        if (action === 'apply-resolution') return await doResolution();
         if (action === 'describe') return await doDescribe();
         if (action === 'plus') return await doSmartPlus();
         if (['storyboard', 'settings', 'create'].includes(action)) return await doClick(action);

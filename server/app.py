@@ -359,7 +359,16 @@ class SettingsHandler(BaseHandler):
         orientation = body.get("orientation")
         duration = body.get("duration")
         model = body.get("model")
-        await HUB.emit("settings", {"orientation": orientation, "duration": duration})
+        resolution = body.get("resolution")
+        await HUB.emit(
+            "settings",
+            {
+                "orientation": orientation,
+                "duration": duration,
+                "model": model,
+                "resolution": resolution,
+            },
+        )
         async with ACTION_LOCK:
             await _ensure_chrome_open(DEFAULT_URL)
             def _apply():
@@ -382,7 +391,7 @@ class SettingsHandler(BaseHandler):
                         wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
                     except Exception:
                         pass
-                    return apply_settings(d, orientation=orientation, duration=duration, model=model, timeout=20)
+                    return apply_settings(d, orientation=orientation, duration=duration, model=model, resolution=resolution, timeout=20)
             res = await asyncio.get_event_loop().run_in_executor(None, _apply)
         self.write(json.dumps({"ok": True, "applied": res}))
 

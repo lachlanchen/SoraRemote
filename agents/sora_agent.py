@@ -689,11 +689,18 @@ def fill_storyboard(driver, scenes: list[str], ensure_storyboard: bool = True, t
     return filled
 
 
-def apply_settings(driver, orientation: str | None = None, duration: int | None = None, model: str | None = None, timeout: int = 20) -> dict:
+def apply_settings(
+    driver,
+    orientation: str | None = None,
+    duration: int | None = None,
+    model: str | None = None,
+    resolution: str | None = None,
+    timeout: int = 20,
+) -> dict:
     """Apply settings like orientation and duration via the settings menu.
     Returns a dict of attempted values.
     """
-    result = {"orientation": None, "duration": None, "model": None}
+    result = {"orientation": None, "duration": None, "model": None, "resolution": None}
     ctrls = find_page_controls(driver, timeout=10)
     settings_btn = ctrls.get("settings")
 
@@ -740,13 +747,45 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
         time.sleep(0.2)
         return is_menu_open()
 
-    def select_menu_option(option_labels: list[str]) -> bool:
+    def select_menu_option(section_labels: list[str], option_labels: list[str]) -> bool:
         if not ensure_menu_open():
+            return False
+
+        section_labels_norm = [str(l).strip().lower() for l in section_labels if str(l).strip()]
+        if not section_labels_norm:
             return False
 
         labels_norm = [str(l).strip().lower() for l in option_labels if str(l).strip()]
         if not labels_norm:
             return False
+
+        open_script = """
+        const sections = arguments[0];
+        const items = Array.from(document.querySelectorAll('div[role="menuitem"]'));
+        for (const el of items) {
+            const text = (el.innerText || '').trim().toLowerCase();
+            if (!text) continue;
+            if (sections.some(lbl => text.includes(lbl))) {
+                el.scrollIntoView({block: 'center', behavior: 'instant'});
+                el.dispatchEvent(new PointerEvent('pointerover', {bubbles: true}));
+                el.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+                el.dispatchEvent(new PointerEvent('pointerup', {bubbles: true}));
+                el.click();
+                return true;
+            }
+        }
+        return false;
+        """
+
+        try:
+            opened = driver.execute_script(open_script, section_labels_norm)
+        except Exception:
+            opened = False
+
+        if not opened:
+            return False
+
+        time.sleep(0.2)
 
         select_script = """
         const labels = arguments[0];
@@ -788,25 +827,40 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
         return _is_checked(option_el)
 
     if orientation:
-        opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
-        if select_menu_option([opt.lower(), opt]):
-            result["orientation"] = opt
+        opt = 'portrait' if str(orientation).lower().startswith('p') else 'landscape'
+        if select_menu_option(['orientation'], [opt]):
+            result["orientation"] = opt.title()
 
     if duration is not None:
         seconds = int(duration)
-        labels = [f"{seconds} seconds", f"{seconds}s", f"{seconds} sec"]
-        if select_menu_option(labels):
+        labels = [
+            f"{seconds} seconds",
+            f"{seconds}s",
+            f"{seconds} sec",
+            f"{seconds} second",
+        ]
+        if select_menu_option(['duration', 'length'], labels):
             result["duration"] = seconds
 
     if model:
         # Accept values like 'sora 2 pro', 'pro', 'sora 2'
         m = str(model).strip().lower()
         if 'pro' in m:
-            want = 'Sora 2 Pro'
+            want = 'sora 2 pro'
         else:
-            want = 'Sora 2'
-        if select_menu_option([want, want.lower()]):
-            result["model"] = want
+            want = 'sora 2'
+        if select_menu_option(['model'], [want]):
+            result["model"] = want.title()
+
+    if resolution:
+        res = str(resolution).strip().lower()
+        labels = [res]
+        if res.startswith('high'):
+            labels.extend(['high quality', 'high'])
+        elif res.startswith('standard'):
+            labels.extend(['standard'])
+        if select_menu_option(['quality', 'resolution'], labels):
+            result["resolution"] = res.title()
 
     # Close menu if still open (best-effort)
     if is_menu_open():
