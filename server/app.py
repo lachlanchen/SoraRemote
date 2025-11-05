@@ -201,6 +201,32 @@ class TypeHandler(BaseHandler):
         self.write(json.dumps({"ok": ok}))
 
 
+class DescribeHandler(BaseHandler):
+    async def post(self):
+        body = json.loads(self.request.body or b"{}")
+        text = body.get("text") or ""
+        await HUB.emit("describe", {"len": len(text)})
+        async with ACTION_LOCK:
+            await _ensure_chrome_open(DEFAULT_URL)
+            def _describe():
+                with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
+                    d.get(DEFAULT_URL)
+                    wait_for_page_loaded(d, timeout=30)
+                    try:
+                        wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
+                    except Exception:
+                        pass
+                    type_into_selector(
+                        d,
+                        'textarea[placeholder="Optionally describe your video..."]',
+                        text,
+                        timeout=30,
+                    )
+                    return True
+            ok = await asyncio.get_event_loop().run_in_executor(None, _describe)
+        self.write(json.dumps({"ok": ok}))
+
+
 class ComposeHandler(BaseHandler):
     async def post(self):
         body = json.loads(self.request.body or b"{}")
@@ -404,6 +430,7 @@ def make_app() -> tornado.web.Application:
         (r"/api/actions", ActionsHandler),
         (r"/api/click", ClickHandler),
         (r"/api/type", TypeHandler),
+        (r"/api/describe", DescribeHandler),
         (r"/api/attach", AttachHandler),
         (r"/api/storyboard", StoryboardHandler),
         (r"/api/settings", SettingsHandler),

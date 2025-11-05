@@ -55,6 +55,14 @@
       </section>
 
       <section>
+        <label for="media-desc">Media description</label>
+        <textarea id="media-desc" placeholder="Optionally describe your video..."></textarea>
+        <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
+          <button data-action="describe">Apply Description</button>
+        </div>
+      </section>
+
+      <section>
         <label for="filepath">Attach media (server path)</label>
         <input id="filepath" type="text" placeholder="/home/user/Downloads/file.jpg" />
         <div class="row" style="grid-template-columns: repeat(2,minmax(0,1fr));">

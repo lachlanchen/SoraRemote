@@ -10,6 +10,7 @@
   const durationEl = qs('#duration');
   const modelEl = qs('#model');
   const fileEl = qs('#fileinput');
+  const mediaDescEl = qs('#media-desc');
   const prevImg = qs('#preview-img');
   const prevVideo = qs('#preview-video');
   let currentObjectUrl = null;
@@ -85,6 +86,13 @@
     const model = modelEl.value || null;
     const data = await api('/api/settings', { method: 'POST', body: JSON.stringify({ orientation, duration, model }) });
     log(`settings: ${JSON.stringify(data)}`);
+  }
+
+  async function doDescribe() {
+    if (!mediaDescEl) return log('Description textarea missing');
+    const text = mediaDescEl.value || '';
+    const data = await api('/api/describe', { method: 'POST', body: JSON.stringify({ text }) });
+    log(`describe: ${JSON.stringify(data)}`);
   }
 
   async function doUploadAndAttach() {
@@ -249,6 +257,7 @@
         if (action === 'upload-and-attach') return await doUploadAndAttach();
         if (action === 'apply-storyboard') return await doStoryboard();
         if (action === 'apply-settings') return await doSettings();
+        if (action === 'describe') return await doDescribe();
         if (action === 'plus') return await doSmartPlus();
         if (['storyboard', 'settings', 'create'].includes(action)) return await doClick(action);
       } catch (err) {
