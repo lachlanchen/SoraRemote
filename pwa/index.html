@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101828" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <title>Sora Remote</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Sora Remote</h1>
+      <div id="status">Connecting…</div>
+    </header>
+
+    <main>
+      <section>
+        <label for="server">Server URL</label>
+        <input id="server" type="text" placeholder="http://localhost:8791" />
+        <button id="btn-save-server">Save</button>
+      </section>
+
+      <section class="row">
+        <button data-action="open">Open Explore</button>
+        <button data-action="list">List Controls</button>
+      </section>
+
+      <section class="row">
+        <button data-action="plus">Plus</button>
+        <button data-action="storyboard">Storyboard</button>
+        <button data-action="settings">Settings</button>
+        <button data-action="create">Create</button>
+      </section>
+
+      <section>
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" placeholder="Describe your video..."></textarea>
+        <div class="row">
+          <button data-action="type">Send Text</button>
+          <button data-action="compose">Compose & Create</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Debug Log</h2>
+        <pre id="log"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+  </html>
+
