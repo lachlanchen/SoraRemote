@@ -694,64 +694,100 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
     Returns a dict of attempted values.
     """
     result = {"orientation": None, "duration": None, "model": None}
-    # Open settings menu
     ctrls = find_page_controls(driver, timeout=10)
-    _ = click_safely(driver, ctrls.get("settings"), force=False)
-    time.sleep(0.2)
+    settings_btn = ctrls.get("settings")
 
-    def click_menu_item(text):
-        xp = f"//div[@role='menuitem' and .//div[contains(normalize-space(),'{text}')]]"
+    def is_menu_open() -> bool:
         try:
-            el = driver.find_element(By.XPATH, xp)
-            el.click()
+            driver.find_element(By.XPATH, "//div[@role='menu' and contains(@class,'popover')]")
             return True
         except Exception:
+            return False
+
+    def ensure_menu_open() -> bool:
+        if is_menu_open():
+            return True
+        if settings_btn is None:
+            return False
+        clicked = click_safely(driver, settings_btn, force=False)
+        if not clicked:
             try:
-                el = driver.find_element(By.XPATH, xp)
-                driver.execute_script("arguments[0].click();", el)
-                return True
+                driver.execute_script("arguments[0].click();", settings_btn)
+            except Exception:
+                pass
+        time.sleep(0.2)
+        return is_menu_open()
+
+    def select_menu_option(menu_label: str, option_label: str) -> bool:
+        if not ensure_menu_open():
+            return False
+
+        parent_xp = f"//div[@role='menuitem' and .//div[contains(normalize-space(),'{menu_label}')]]"
+        option_xp = f"//div[@role='menuitemradio' and .//*[normalize-space()='{option_label}']]"
+
+        try:
+            parent = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, parent_xp)))
+        except Exception:
+            try:
+                parent = driver.find_element(By.XPATH, parent_xp)
             except Exception:
                 return False
 
-    if orientation:
-        if click_menu_item('Orientation'):
-            opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
-            xp = f"//div[@role='menuitemradio' and .//span[normalize-space()='{opt}']]"
+        # Attempt to open submenu and click target option
+        for attempt in range(3):
             try:
-                el = driver.find_element(By.XPATH, xp)
-                el.click()
-                result["orientation"] = opt
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", parent)
+            except Exception:
+                pass
+            try:
+                parent.click()
             except Exception:
                 try:
-                    el = driver.find_element(By.XPATH, xp)
-                    driver.execute_script("arguments[0].click();", el)
-                    result["orientation"] = opt
+                    driver.execute_script("arguments[0].click();", parent)
                 except Exception:
                     pass
 
-    if duration is not None:
-        if click_menu_item('Duration'):
-            label = f"{int(duration)}s"
-            xp = f"//div[@role='menuitemradio' and .//*[normalize-space()='{label}']]"
-            # Some menus might not be radio; try generic menu item too
             try:
-                el = driver.find_element(By.XPATH, xp)
+                option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, option_xp)))
             except Exception:
-                xp = f"//div[@role='menuitem' and .//*[normalize-space()='{label}']]"
+                # In case the submenu hasn't opened yet, retry
+                time.sleep(0.3)
+                continue
+
+            try:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", option)
+            except Exception:
+                pass
+
+            try:
+                option.click()
+            except Exception:
                 try:
-                    el = driver.find_element(By.XPATH, xp)
+                    driver.execute_script("arguments[0].click();", option)
                 except Exception:
-                    el = None
-            if el is not None:
-                try:
-                    el.click()
-                    result["duration"] = int(duration)
-                except Exception:
-                    try:
-                        driver.execute_script("arguments[0].click();", el)
-                        result["duration"] = int(duration)
-                    except Exception:
-                        pass
+                    continue
+
+            # Wait for the option to report checked state
+            try:
+                WebDriverWait(driver, 3).until(
+                    lambda d: option.get_attribute('aria-checked') == 'true' or option.get_attribute('data-state') == 'checked'
+                )
+            except Exception:
+                pass
+
+            return True
+
+        return False
+
+    if orientation:
+        opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
+        if select_menu_option('Orientation', opt):
+            result["orientation"] = opt
+
+    if duration is not None:
+        label = f"{int(duration)}s"
+        if select_menu_option('Duration', label):
+            result["duration"] = int(duration)
 
     if model:
         # Accept values like 'sora 2 pro', 'pro', 'sora 2'
@@ -760,19 +796,19 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
             want = 'Sora 2 Pro'
         else:
             want = 'Sora 2'
-        if click_menu_item('Model'):
-            xp = f"//div[@role='menuitemradio' and .//span[normalize-space()='{want}']]"
+        if select_menu_option('Model', want):
+            result["model"] = want
+
+    # Close menu if still open (best-effort)
+    if is_menu_open():
+        try:
+            body = driver.find_element(By.TAG_NAME, 'body')
+            body.send_keys(Keys.ESCAPE)
+        except Exception:
             try:
-                el = driver.find_element(By.XPATH, xp)
-                el.click()
-                result["model"] = want
+                driver.execute_script("document.activeElement && document.activeElement.blur && document.activeElement.blur();")
             except Exception:
-                try:
-                    el = driver.find_element(By.XPATH, xp)
-                    driver.execute_script("arguments[0].click();", el)
-                    result["model"] = want
-                except Exception:
-                    pass
+                pass
 
     return result
 
