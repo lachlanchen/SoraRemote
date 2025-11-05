@@ -13,6 +13,7 @@
   const prevImg = qs('#preview-img');
   const prevVideo = qs('#preview-video');
   let currentObjectUrl = null;
+  let lastUploadedPath = null;
 
   const defaultServer = localStorage.getItem('sora_server') || `${location.origin}`;
   serverInput.value = defaultServer;
@@ -58,11 +59,17 @@
     log(`click(${key}): ${JSON.stringify(data)}`);
   }
 
+  async function attachServerPath(path, label) {
+    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
+    log(`${label || 'attach'}: ${JSON.stringify(data)}`);
+    if (data && data.ok) lastUploadedPath = path;
+    return data;
+  }
+
   async function doAttachPath() {
     const path = filepathEl.value.trim();
     if (!path) return log('No filepath provided');
-    const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
-    log(`attach: ${JSON.stringify(data)}`);
+    await attachServerPath(path, 'attach');
   }
 
   async function doStoryboard() {
@@ -81,7 +88,10 @@
   }
 
   async function doUploadAndAttach() {
-    if (!fileEl.files || !fileEl.files.length) return log('No file selected');
+    if (!fileEl.files || !fileEl.files.length) {
+      if (lastUploadedPath) return attachServerPath(lastUploadedPath, 'attach(reuse)');
+      return log('No file selected');
+    }
     const fd = new FormData();
     fd.append('file', fileEl.files[0]);
     const base = (localStorage.getItem('sora_server') || serverInput.value || '').replace(/\/$/, '');
@@ -92,8 +102,8 @@
     log(`upload: ${JSON.stringify(data)}`);
     if (!data.paths || !data.paths.length) return;
     const path = data.paths[0];
-    const attach = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: true }) });
-    log(`attach(uploaded): ${JSON.stringify(attach)}`);
+    lastUploadedPath = path;
+    await attachServerPath(path, 'attach(uploaded)');
   }
 
   async function doSmartPlus() {
