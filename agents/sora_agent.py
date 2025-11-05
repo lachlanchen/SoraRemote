@@ -752,79 +752,92 @@ def apply_settings(
             return False
 
         section_labels_norm = [str(l).strip().lower() for l in section_labels if str(l).strip()]
-        if not section_labels_norm:
+        option_labels_norm = [str(l).strip().lower() for l in option_labels if str(l).strip()]
+        if not section_labels_norm or not option_labels_norm:
             return False
 
-        labels_norm = [str(l).strip().lower() for l in option_labels if str(l).strip()]
-        if not labels_norm:
-            return False
-
-        open_script = """
-        const sections = arguments[0];
-        const items = Array.from(document.querySelectorAll('div[role="menuitem"]'));
-        for (const el of items) {
-            const text = (el.innerText || '').trim().toLowerCase();
-            if (!text) continue;
-            if (sections.some(lbl => text.includes(lbl))) {
-                el.scrollIntoView({block: 'center', behavior: 'instant'});
-                el.dispatchEvent(new PointerEvent('pointerover', {bubbles: true}));
-                el.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
-                el.dispatchEvent(new PointerEvent('pointerup', {bubbles: true}));
-                el.click();
-                return true;
-            }
-        }
-        return false;
-        """
-
-        try:
-            opened = driver.execute_script(open_script, section_labels_norm)
-        except Exception:
-            opened = False
-
-        if not opened:
-            return False
-
-        time.sleep(0.2)
-
-        select_script = """
-        const labels = arguments[0];
-        const radios = Array.from(document.querySelectorAll('div[role="menuitemradio"]'));
-        for (const el of radios) {
-            const text = (el.innerText || '').trim().toLowerCase();
-            if (!text) continue;
-            if (labels.some(lbl => text === lbl || text.includes(lbl))) {
-                el.scrollIntoView({block: 'center', behavior: 'instant'});
-                el.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
-                el.dispatchEvent(new PointerEvent('pointerup', {bubbles: true}));
-                el.click();
-                return el;
-            }
-        }
-        return null;
-        """
-
-        try:
-            option_el = driver.execute_script(select_script, labels_norm)
-        except Exception:
-            option_el = None
-
-        if option_el is None:
-            return False
-
-        def _is_checked(el):
+        parent_selected = False
+        for _ in range(3):
             try:
-                state = (el.get_attribute('aria-checked') or el.get_attribute('data-state') or '').lower()
-                return state in ('true', 'checked')
+                menu_items = driver.find_elements(By.XPATH, "//div[@role='menuitem']")
             except Exception:
-                return False
+                menu_items = []
+            for item in menu_items:
+                try:
+                    text = (item.text or "").strip().lower()
+                except Exception:
+                    text = ""
+                if not text:
+                    continue
+                if any(lbl in text for lbl in section_labels_norm):
+                    try:
+                        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", item)
+                    except Exception:
+                        pass
+                    time.sleep(0.15)
+                    try:
+                        item.click()
+                    except Exception:
+                        try:
+                            driver.execute_script("arguments[0].click();", item)
+                        except Exception:
+                            continue
+                    parent_selected = True
+                    break
+            if parent_selected:
+                break
+            time.sleep(0.25)
 
-        end_time = time.time() + 3.0
-        while time.time() < end_time:
-            if _is_checked(option_el):
-                return True
+        if not parent_selected:
+            return False
+
+        time.sleep(0.3)
+
+        for _ in range(4):
+            try:
+                radios = driver.find_elements(By.XPATH, "//div[@role='menuitemradio']")
+            except Exception:
+                radios = []
+            target = None
+            for radio in radios:
+                try:
+                    rtext = (radio.text or "").strip().lower()
+                except Exception:
+                    rtext = ""
+                if not rtext:
+                    continue
+                if any(lbl == rtext or lbl in rtext for lbl in option_labels_norm):
+                    target = radio
+                    break
+            if target is None:
+                time.sleep(0.3)
+                continue
+            try:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target)
+            except Exception:
+                pass
             time.sleep(0.1)
-        return _is_checked(option_el)
+            try:
+                target.click()
+            except Exception:
+                try:
+                    driver.execute_script("arguments[0].click();", target)
+                except Exception:
+                    target = None
+            if target is None:
+                continue
+
+            end = time.time() + 3.0
+            while time.time() < end:
+                try:
+                    state = (target.get_attribute('aria-checked') or target.get_attribute('data-state') or '').lower()
+                    if state in ('true', 'checked'):
+                        return True
+                except Exception:
+                    break
+                time.sleep(0.15)
+
+        return False
 
     if orientation:
         opt = 'portrait' if str(orientation).lower().startswith('p') else 'landscape'
