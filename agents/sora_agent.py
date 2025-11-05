@@ -17,7 +17,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
 from typing import List, Tuple
 
 try:
@@ -699,7 +698,7 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
     settings_btn = ctrls.get("settings")
 
     if settings_btn is None:
-        # Fallback: find any visible settings button near composer
+        # Fallback: prefer visible settings button near composer summary
         try:
             candidates = driver.find_elements(By.XPATH, "//button[@aria-label='Settings']")
         except Exception:
@@ -714,11 +713,11 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
                 text = cand.text.strip()
             except Exception:
                 text = ""
-            if any(token in text for token in ("Sora", "Portrait", "Landscape", "Model")):
+            if any(token.lower() in text.lower() for token in ("sora", "portrait", "landscape", "model")):
                 settings_btn = cand
                 break
         if settings_btn is None:
-            settings_btn = ctrls.get("settings")  # retry original value
+            settings_btn = ctrls.get("settings")
 
     def is_menu_open() -> bool:
         try:
@@ -741,98 +740,63 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
         time.sleep(0.2)
         return is_menu_open()
 
-    def select_menu_option(menu_label: str, option_label: str) -> bool:
+    def select_menu_option(option_labels: list[str]) -> bool:
         if not ensure_menu_open():
             return False
 
-        parent_xp = f"//div[@role='menuitem' and .//div[contains(normalize-space(),'{menu_label}')]]"
-        option_xp = f"//div[@role='menuitemradio' and .//*[normalize-space()='{option_label}']]"
+        labels_norm = [str(l).strip().lower() for l in option_labels if str(l).strip()]
+        if not labels_norm:
+            return False
 
-        def hover(el):
-            try:
-                ActionChains(driver).move_to_element(el).pause(0.05).perform()
-            except Exception:
-                try:
-                    driver.execute_script(
-                        "arguments[0].dispatchEvent(new MouseEvent('pointerover', {bubbles:true, composed:true}));",
-                        el,
-                    )
-                except Exception:
-                    pass
+        select_script = """
+        const labels = arguments[0];
+        const radios = Array.from(document.querySelectorAll('div[role="menuitemradio"]'));
+        for (const el of radios) {
+            const text = (el.innerText || '').trim().toLowerCase();
+            if (!text) continue;
+            if (labels.some(lbl => text === lbl || text.includes(lbl))) {
+                el.scrollIntoView({block: 'center', behavior: 'instant'});
+                el.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+                el.dispatchEvent(new PointerEvent('pointerup', {bubbles: true}));
+                el.click();
+                return el;
+            }
+        }
+        return null;
+        """
 
-        def option_checked() -> bool:
+        try:
+            option_el = driver.execute_script(select_script, labels_norm)
+        except Exception:
+            option_el = None
+
+        if option_el is None:
+            return False
+
+        def _is_checked(el):
             try:
-                opt_el = driver.find_element(By.XPATH, option_xp)
+                state = (el.get_attribute('aria-checked') or el.get_attribute('data-state') or '').lower()
+                return state in ('true', 'checked')
             except Exception:
                 return False
-            state = (opt_el.get_attribute('aria-checked') or opt_el.get_attribute('data-state') or '').lower()
-            return state in ('true', 'checked')
 
-        for attempt in range(6):
-            if not ensure_menu_open():
-                return False
-            try:
-                parent = driver.find_element(By.XPATH, parent_xp)
-            except Exception:
-                time.sleep(0.2)
-                continue
-
-            try:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", parent)
-            except Exception:
-                pass
-
-            hover(parent)
-            time.sleep(0.15)
-
-            try:
-                option = WebDriverWait(driver, 5).until(
-                    EC.visibility_of_element_located((By.XPATH, option_xp))
-                )
-            except Exception:
-                time.sleep(0.2)
-                continue
-
-            # Move to option to ensure it is active and clickable
-            hover(option)
-            try:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", option)
-            except Exception:
-                pass
-
-            try:
-                WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, option_xp)))
-            except Exception:
-                pass
-
-            try:
-                option.click()
-            except Exception:
-                try:
-                    driver.execute_script("arguments[0].click();", option)
-                except Exception:
-                    continue
-
-            try:
-                WebDriverWait(driver, 2).until(lambda _d: option_checked())
-            except Exception:
-                if not option_checked():
-                    time.sleep(0.2)
-                    continue
-
-            return True
-
-        return option_checked()
+        end_time = time.time() + 3.0
+        while time.time() < end_time:
+            if _is_checked(option_el):
+                return True
+            time.sleep(0.1)
+        return _is_checked(option_el)
 
     if orientation:
         opt = 'Portrait' if str(orientation).lower().startswith('p') else 'Landscape'
-        if select_menu_option('Orientation', opt):
+        if select_menu_option([opt.lower(), opt]):
             result["orientation"] = opt
 
     if duration is not None:
-        label = f"{int(duration)}s"
-        if select_menu_option('Duration', label):
-            result["duration"] = int(duration)
+        seconds = int(duration)
+        labels = [f"{seconds} seconds", f"{seconds}s", f"{seconds} sec"]
+        if select_menu_option(labels):
+            result["duration"] = seconds
 
     if model:
         # Accept values like 'sora 2 pro', 'pro', 'sora 2'
@@ -841,7 +805,7 @@ def apply_settings(driver, orientation: str | None = None, duration: int | None 
             want = 'Sora 2 Pro'
         else:
             want = 'Sora 2'
-        if select_menu_option('Model', want):
+        if select_menu_option([want, want.lower()]):
             result["model"] = want
 
     # Close menu if still open (best-effort)
