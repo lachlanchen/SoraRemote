@@ -82,3 +82,7 @@ Highlights:
 - The live debug log shows every API call and the values returned from Sora (e.g., the selected model or duration).
 
 By default the server reuses Chrome on `--remote-debugging-port 9333` and keeps uploads in `./uploads` unless `SORA_UPLOADS_DIR` is set.
+
+### Known Good Build
+
+If you need a stable baseline that guarantees storyboard media attachment works end-to-end (including the Open Storyboard / Attach Current Path buttons and the combined Apply flow), check out commit `c6683ed6d9ee0ac110536352867a26a966e3e275`.
