@@ -369,6 +369,17 @@ def reveal_input_file(driver, el):
     except Exception:
         pass
 
+def rehide_input_file(driver, el):
+    try:
+        driver.execute_script(
+            "arguments[0].style.display='';"
+            "arguments[0].style.visibility='hidden';"
+            "try{arguments[0].setAttribute('hidden','');}catch(e){}",
+            el,
+        )
+    except Exception:
+        pass
+
 
 def _inject_file_via_js_global(driver, el, attach_path: str) -> bool:
     try:
@@ -946,9 +957,20 @@ def attach_storyboard_media(driver, path: str, timeout: int = 20) -> bool:
         return False
 
     def _attempt(el, attach_path_local: str) -> bool:
-        if _try_native(el, attach_path_local):
+        # Prefer JS injection first to avoid flashing a visible input
+        if _try_inject(el, attach_path_local):
+            try:
+                rehide_input_file(driver, el)
+            except Exception:
+                pass
             return True
-        return _try_inject(el, attach_path_local)
+        if _try_native(el, attach_path_local):
+            try:
+                rehide_input_file(driver, el)
+            except Exception:
+                pass
+            return True
+        return False
 
     accept = ''
     try:
@@ -1018,7 +1040,7 @@ def fill_script_updates(driver, text: str, ensure_storyboard: bool = True, timeo
     const done = arguments[arguments.length - 1];
     try {
         const norm = (str) => (str || '').replace(/\s+/g, ' ').trim().toLowerCase();
-        const findByLabel = () => {
+        const findPwaTextarea = () => {
             const labels = Array.from(document.querySelectorAll('label'));
             for (const label of labels) {
                 if (norm(label.textContent) === 'script updates') {
@@ -1031,10 +1053,12 @@ def fill_script_updates(driver, text: str, ensure_storyboard: bool = True, timeo
             }
             return null;
         };
-        const target = findByLabel() || Array.from(document.querySelectorAll('textarea')).find(el => {
+        const findSoraComposer = () => Array.from(document.querySelectorAll('textarea')).find(el => {
             const ph = norm(el.getAttribute('placeholder'));
             return ph.includes('describe updates to your script');
         });
+        // Prefer Sora's composer; fallback to PWA card if not present
+        const target = findSoraComposer() || findPwaTextarea();
         if (!target) {
             done(false);
             return;
