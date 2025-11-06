@@ -442,7 +442,7 @@ class StoryboardMediaHandler(BaseHandler):
                             wait_for_page_loaded(d, timeout=30)
                         except Exception:
                             pass
-                    # Only switch to Storyboard if the storyboard composer isn't visible
+                    # Only attach when the storyboard composer is already visible; avoid toggling UI
                     try:
                         in_sb = bool(
                             d.execute_script(
@@ -452,9 +452,7 @@ class StoryboardMediaHandler(BaseHandler):
                     except Exception:
                         in_sb = False
                     if not in_sb:
-                        ctrls = find_page_controls(d, timeout=10)
-                        _ = click_safely(d, ctrls.get("storyboard"), force=False)
-                        time.sleep(0.2)
+                        return False
                     return attach_storyboard_media(d, path, timeout=20)
             ok = await asyncio.get_event_loop().run_in_executor(None, _attach)
         await HUB.emit("storyboard_media_result", {"ok": bool(ok)})
