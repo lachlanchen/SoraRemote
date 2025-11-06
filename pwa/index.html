@@ -66,6 +66,15 @@
       </section>
 
       <section>
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" placeholder="Describe your video..."></textarea>
+        <div class="row">
+          <button data-action="type">Send Text</button>
+          <button data-action="compose">Compose & Create</button>
+        </div>
+      </section>
+
+      <section>
         <label>Media</label>
         <div class="stack">
           <div class="card">
@@ -108,55 +117,6 @@
         <textarea id="script-updates" placeholder="Describe updates to your script..."></textarea>
         <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
           <button data-action="apply-script-updates">Apply Script Updates</button>
-        </div>
-      </section>
-
-      <section>
-        <label for="prompt">Prompt</label>
-        <textarea id="prompt" placeholder="Describe your video..."></textarea>
-        <div class="row">
-          <button data-action="type">Send Text</button>
-          <button data-action="compose">Compose & Create</button>
-        </div>
-      </section>
-
-      <section>
-        <label>Settings</label>
-        <div class="row" style="grid-template-columns: repeat(4,minmax(0,1fr));">
-          <select id="model">
-            <option value="sora 2">Sora 2</option>
-            <option value="sora 2 pro">Sora 2 Pro</option>
-          </select>
-          <select id="orientation">
-            <option value="portrait">Portrait</option>
-            <option value="landscape">Landscape</option>
-          </select>
-          <select id="duration">
-            <option value="10">10s</option>
-            <option value="15">15s</option>
-          </select>
-          <div id="resolution-wrapper">
-            <select id="resolution">
-              <option value="standard">Standard</option>
-              <option value="high">High</option>
-            </select>
-            <div class="small muted" id="resolution-note">Available for Sora 2 Pro</div>
-          </div>
-        </div>
-        <div class="row" style="grid-template-columns: repeat(4,minmax(0,1fr));">
-          <button data-action="apply-model">Set Model</button>
-          <button data-action="apply-orientation">Set Orientation</button>
-          <button data-action="apply-duration">Set Duration</button>
-          <button data-action="apply-resolution">Set Resolution</button>
-        </div>
-      </section>
-
-      <section>
-        <label for="prompt">Prompt</label>
-        <textarea id="prompt" placeholder="Describe your video..."></textarea>
-        <div class="row">
-          <button data-action="type">Send Text</button>
-          <button data-action="compose">Compose & Create</button>
         </div>
       </section>
 
