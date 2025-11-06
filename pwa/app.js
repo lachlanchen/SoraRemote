@@ -15,6 +15,7 @@
   const resolutionBtn = document.querySelector('button[data-action="apply-resolution"]');
   const fileEl = qs('#fileinput');
   const mediaDescEl = qs('#media-desc');
+  const scriptUpdatesEl = qs('#script-updates');
   const prevImg = qs('#preview-img');
   const prevVideo = qs('#preview-video');
   let currentObjectUrl = null;
@@ -151,6 +152,13 @@
     const text = mediaDescEl.value || '';
     const data = await api('/api/describe', { method: 'POST', body: JSON.stringify({ text }) });
     log(`describe: ${JSON.stringify(data)}`);
+  }
+
+  async function doScriptUpdates() {
+    if (!scriptUpdatesEl) return log('Script updates textarea missing');
+    const text = scriptUpdatesEl.value || '';
+    const data = await api('/api/script-updates', { method: 'POST', body: JSON.stringify({ text }) });
+    log(`script-updates: ${JSON.stringify(data)}`);
   }
 
   async function doUploadAndAttach() {
@@ -318,6 +326,7 @@
         if (action === 'apply-orientation') return await doOrientation();
         if (action === 'apply-duration') return await doDuration();
         if (action === 'apply-resolution') return await doResolution();
+        if (action === 'apply-script-updates') return await doScriptUpdates();
         if (action === 'describe') return await doDescribe();
         if (action === 'plus') return await doSmartPlus();
         if (['storyboard', 'settings', 'create'].includes(action)) return await doClick(action);

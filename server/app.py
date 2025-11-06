@@ -272,6 +272,49 @@ class DescribeHandler(BaseHandler):
             self.write(json.dumps({"ok": False, "error": "description textarea not found"}))
 
 
+class ScriptUpdateHandler(BaseHandler):
+    async def post(self):
+        body = json.loads(self.request.body or b"{}")
+        text = body.get("text") or ""
+        await HUB.emit("script_updates", {"len": len(text)})
+
+        async with ACTION_LOCK:
+            await _ensure_chrome_open(DEFAULT_URL)
+
+            def _apply():
+                with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
+                    try:
+                        current = d.current_url or ""
+                    except Exception:
+                        current = ""
+                    normalized_current = current.rstrip("/")
+                    normalized_target = DEFAULT_URL.rstrip("/")
+                    if not normalized_current.startswith(normalized_target):
+                        d.get(DEFAULT_URL)
+                        wait_for_page_loaded(d, timeout=30)
+                    else:
+                        try:
+                            wait_for_page_loaded(d, timeout=30)
+                        except Exception:
+                            pass
+                    try:
+                        wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
+                    except Exception:
+                        pass
+                    type_into_selector(
+                        d,
+                        'textarea[placeholder="Describe updates to your script…"]',
+                        text,
+                        timeout=30,
+                    )
+                    return True
+
+            ok = await asyncio.get_event_loop().run_in_executor(None, _apply)
+
+        await HUB.emit("script_updates_result", {"ok": bool(ok)})
+        self.write(json.dumps({"ok": bool(ok)}))
+
+
 class ComposeHandler(BaseHandler):
     async def post(self):
         body = json.loads(self.request.body or b"{}")
@@ -509,6 +552,7 @@ def make_app() -> tornado.web.Application:
         (r"/api/click", ClickHandler),
         (r"/api/type", TypeHandler),
         (r"/api/describe", DescribeHandler),
+        (r"/api/script-updates", ScriptUpdateHandler),
         (r"/api/attach", AttachHandler),
         (r"/api/storyboard", StoryboardHandler),
         (r"/api/settings", SettingsHandler),

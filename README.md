@@ -59,6 +59,8 @@ All endpoints operate against the currently attached Chrome (defaults to debugge
   - Uploads media. Uses DataTransfer injection and clears existing media automatically. `click_plus` defaults to `false` to avoid launching the OS file picker.
 - `POST /api/describe` `{ text }`
   - Fills the “Optionally describe your video…” textarea beside the media preview.
+- `POST /api/script-updates` `{ text }`
+  - Fills the “Describe updates to your script…” composer field.
 - `POST /api/storyboard` `{ scenes: ["scene 1", ...] }`
   - Opens the storyboard and fills each scene textarea.
 - `POST /api/settings` `{ model?, orientation?, duration?, resolution? }`
@@ -74,7 +76,7 @@ Highlights:
 
 - Upload media via the file picker or by pasting a path, then click **Plus** to send it to Sora without reopening the system file dialog.
 - Apply a media description in the “Media description” box — the textarea mirrors the one in the composer.
-- Independent buttons for **Set Model**, **Set Orientation**, **Set Duration**, and **Set Resolution** make it easy to test settings one at a time. The server uses in-page JavaScript to select the exact radio option, so no accidental “three dots” menu clicks.
+- Independent buttons for **Set Model**, **Set Orientation**, **Set Duration**, **Set Resolution**, and **Apply Script Updates** make it easy to test controls one at a time. The server uses in-page JavaScript to select the exact radio option and textarea, so no accidental “three dots” menu clicks.
 - The live debug log shows every API call and the values returned from Sora (e.g., the selected model or duration).
 
 By default the server reuses Chrome on `--remote-debugging-port 9333` and keeps uploads in `./uploads` unless `SORA_UPLOADS_DIR` is set.
