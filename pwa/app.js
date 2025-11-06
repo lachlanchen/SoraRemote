@@ -10,6 +10,9 @@
   const durationEl = qs('#duration');
   const modelEl = qs('#model');
   const resolutionEl = qs('#resolution');
+  const resolutionWrapper = qs('#resolution-wrapper');
+  const resolutionNote = qs('#resolution-note');
+  const resolutionBtn = document.querySelector('button[data-action="apply-resolution"]');
   const fileEl = qs('#fileinput');
   const mediaDescEl = qs('#media-desc');
   const prevImg = qs('#preview-img');
@@ -19,6 +22,26 @@
 
   const defaultServer = localStorage.getItem('sora_server') || `${location.origin}`;
   serverInput.value = defaultServer;
+
+  function refreshResolutionControls() {
+    const modelVal = (modelEl && modelEl.value || '').toLowerCase();
+    const isPro = modelVal.includes('pro');
+    if (resolutionEl) {
+      resolutionEl.disabled = !isPro;
+      if (!isPro) {
+        resolutionEl.value = 'standard';
+      }
+    }
+    if (resolutionWrapper) {
+      resolutionWrapper.classList.toggle('disabled', !isPro);
+    }
+    if (resolutionNote) {
+      resolutionNote.style.visibility = isPro ? 'hidden' : 'visible';
+    }
+    if (resolutionBtn) {
+      resolutionBtn.disabled = !isPro;
+    }
+  }
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -84,26 +107,43 @@
   async function sendSettings(payload, label) {
     const data = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
     log(`${label}: ${JSON.stringify(data)}`);
+    return data;
   }
 
   async function doModel() {
     const model = modelEl.value || null;
-    await sendSettings({ model }, 'model');
+    const data = await sendSettings({ model }, 'model');
+    if (data && data.applied && data.applied.model) {
+      const val = data.applied.model.toLowerCase();
+      modelEl.value = val.includes('pro') ? 'sora 2 pro' : 'sora 2';
+    }
+    refreshResolutionControls();
   }
 
   async function doOrientation() {
     const orientation = orientationEl.value || null;
-    await sendSettings({ orientation }, 'orientation');
+    const data = await sendSettings({ orientation }, 'orientation');
+    if (data && data.applied && data.applied.orientation && orientationEl) {
+      const val = data.applied.orientation.toLowerCase();
+      orientationEl.value = val.startsWith('landscape') ? 'landscape' : 'portrait';
+    }
   }
 
   async function doDuration() {
     const duration = durationEl.value ? parseInt(durationEl.value, 10) : null;
-    await sendSettings({ duration }, 'duration');
+    const data = await sendSettings({ duration }, 'duration');
+    if (data && data.applied && typeof data.applied.duration !== 'undefined' && durationEl) {
+      durationEl.value = String(data.applied.duration);
+    }
   }
 
   async function doResolution() {
     const resolution = resolutionEl ? resolutionEl.value || null : null;
-    await sendSettings({ resolution }, 'resolution');
+    const data = await sendSettings({ resolution }, 'resolution');
+    if (data && data.applied && data.applied.resolution && resolutionEl) {
+      const val = data.applied.resolution.toLowerCase();
+      resolutionEl.value = val.includes('high') ? 'high' : 'standard';
+    }
   }
 
   async function doDescribe() {
@@ -313,6 +353,9 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch((e) => log(`SW fail: ${e.message}`));
   }
+
+  modelEl && modelEl.addEventListener('change', refreshResolutionControls);
+  refreshResolutionControls();
 
   fileEl && fileEl.addEventListener('change', (e) => {
     const f = fileEl.files && fileEl.files[0];

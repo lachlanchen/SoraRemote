@@ -102,10 +102,13 @@
             <option value="10">10s</option>
             <option value="15">15s</option>
           </select>
-          <select id="resolution">
-            <option value="standard">Standard</option>
-            <option value="high">High</option>
-          </select>
+          <div id="resolution-wrapper">
+            <select id="resolution">
+              <option value="standard">Standard</option>
+              <option value="high">High</option>
+            </select>
+            <div class="small muted" id="resolution-note">Available for Sora 2 Pro</div>
+          </div>
         </div>
         <div class="row" style="grid-template-columns: repeat(4,minmax(0,1fr));">
           <button data-action="apply-model">Set Model</button>
