@@ -126,15 +126,12 @@
           <div class="card">
             <label class="sub">Storyboard media</label>
             <input id="storyboard-fileinput" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,video/mp4,video/webm,video/quicktime" />
-            <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
-              <button data-action="storyboard-upload">Upload & Attach</button>
-              <button data-action="open-storyboard-panel">Open Storyboard</button>
-            </div>
             <div class="stack-row">
               <label class="sub" for="storyboard-filepath">Attached storyboard path</label>
               <input id="storyboard-filepath" type="text" placeholder="" />
-              <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
+              <div class="row" style="grid-template-columns: repeat(2,minmax(0,1fr));">
                 <button data-action="storyboard-attach-path">Attach Current Path</button>
+                <button data-action="open-storyboard-panel">Open Storyboard</button>
               </div>
             </div>
           </div>

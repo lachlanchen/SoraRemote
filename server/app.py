@@ -390,6 +390,29 @@ class StoryboardHandler(BaseHandler):
                         current = ""
                     normalized_current = current.rstrip("/")
                     normalized_target = DEFAULT_URL.rstrip("/")
+                    # Attach-only mode: no scenes, no updates, just media
+                    attach_only = (not scenes) and (not script_updates) and bool(media_path)
+                    if attach_only:
+                        # Do not navigate or toggle UI; only proceed if already on Sora and composer visible
+                        if not normalized_current.startswith(normalized_target):
+                            return 0, False
+                        try:
+                            in_sb = bool(
+                                d.execute_script(
+                                    "return !!Array.from(document.querySelectorAll('textarea')).find(el => ((el.getAttribute('placeholder')||'').toLowerCase()).includes('describe updates to your script'));"
+                                )
+                            )
+                        except Exception:
+                            in_sb = False
+                        if not in_sb:
+                            return 0, False
+                        try:
+                            ok = attach_storyboard_media(d, media_path, timeout=20)
+                        except Exception:
+                            ok = False
+                        return 0, ok
+
+                    # Full flow (may navigate to Sora and open storyboard)
                     if not normalized_current.startswith(normalized_target):
                         d.get(DEFAULT_URL)
                         wait_for_page_loaded(d, timeout=30)

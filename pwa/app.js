@@ -454,8 +454,29 @@
     showPreview(f || null);
   });
 
-  storyboardFileInput && storyboardFileInput.addEventListener('change', () => {
-    lastStoryboardPath = null;
-    if (storyboardFilePathEl) storyboardFilePathEl.value = '';
+  storyboardFileInput && storyboardFileInput.addEventListener('change', async () => {
+    try {
+      lastStoryboardPath = null;
+      if (!storyboardFileInput.files || !storyboardFileInput.files.length) {
+        if (storyboardFilePathEl) storyboardFilePathEl.value = '';
+        return;
+      }
+      const fd = new FormData();
+      fd.append('file', storyboardFileInput.files[0]);
+      const base = (localStorage.getItem('sora_server') || serverInput.value || '').replace(/\/$/, '');
+      const url = `${base}/api/upload`;
+      const res = await fetch(url, { method: 'POST', body: fd });
+      if (!res.ok) {
+        return log(`storyboard auto-upload failed: ${res.status}`);
+      }
+      const data = await res.json();
+      log(`storyboard-auto-upload: ${JSON.stringify(data)}`);
+      if (data.paths && data.paths[0]) {
+        lastStoryboardPath = data.paths[0];
+        if (storyboardFilePathEl) storyboardFilePathEl.value = lastStoryboardPath;
+      }
+    } catch (err) {
+      log(`ERR(storyboard auto-upload): ${err.message}`);
+    }
   });
 })();
