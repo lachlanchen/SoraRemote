@@ -177,6 +177,7 @@
     if (!data.paths || !data.paths.length) return;
     const path = data.paths[0];
     lastUploadedPath = path;
+    if (filepathEl) filepathEl.value = path;
     await attachServerPath(path, 'attach(uploaded)');
   }
 
