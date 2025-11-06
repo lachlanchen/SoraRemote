@@ -18,7 +18,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import StaleElementReferenceException
 from typing import List, Tuple
 
@@ -760,131 +759,70 @@ def apply_settings(
         if not section_labels_norm or not option_labels_norm:
             return None
 
-        lower_expr = "translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+        script = """
+        const sections = arguments[0];
+        const options = arguments[1];
+        const done = arguments[arguments.length - 1];
 
-        submenu_root = None
-        parent_selected = None
+        const norm = (str) => (str || '').replace(/\\s+/g, ' ').trim().toLowerCase();
 
-        for attempt in range(4):
-            try:
-                menu_items = driver.find_elements(By.XPATH, "//div[@role='menuitem']")
-            except Exception:
-                menu_items = []
-            for item in menu_items:
-                try:
-                    text = (item.text or "").strip().lower()
-                except Exception:
-                    text = ""
-                if not text:
-                    continue
-                if any(lbl in text for lbl in section_labels_norm):
-                    try:
-                        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", item)
-                    except Exception:
-                        pass
-                    time.sleep(0.1)
-                    try:
-                        ActionChains(driver).move_to_element(item).pause(0.05).click().perform()
-                    except Exception:
-                        try:
-                            item.click()
-                        except Exception:
-                            try:
-                                driver.execute_script("arguments[0].click();", item)
-                            except Exception:
-                                continue
-                    parent_selected = item
-                    submenu_id = item.get_attribute("aria-controls")
-                    if submenu_id:
-                        try:
-                            submenu_root = WebDriverWait(driver, 4).until(
-                                EC.presence_of_element_located((By.ID, submenu_id))
-                            )
-                            WebDriverWait(driver, 4).until(
-                                lambda d: (d.find_element(By.ID, submenu_id).get_attribute("data-state") or "").lower() == "open"
-                            )
-                        except Exception:
-                            submenu_root = None
-                    break
-            if parent_selected is not None:
-                break
-            time.sleep(0.2)
+        function openMenus() {
+            return Array.from(document.querySelectorAll('div[role="menu"]'))
+                .filter(el => norm(el.getAttribute('data-state')) === 'open');
+        }
 
-        if parent_selected is None:
-            return None
+        function clickEl(el) {
+            if (!el) return;
+            el.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, composed: true}));
+            el.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, composed: true}));
+            el.click();
+        }
 
-        time.sleep(0.2)
+        const menus = openMenus();
+        if (!menus.length) {
+            done(null);
+            return;
+        }
 
-        def locate_option(opt_label: str):
-            opt_label = opt_label.strip().lower()
-            if submenu_root is not None and submenu_root.get_attribute("id"):
-                base_xpath = f"//*[@id='{submenu_root.get_attribute('id')}']"
-            else:
-                base_xpath = ""
-            option_xpath = (
-                f"{base_xpath}//div[@role='menuitemradio' and contains({lower_expr}, '{opt_label}')]"
-            )
-            try:
-                el = WebDriverWait(driver, 4).until(
-                    EC.element_to_be_clickable((By.XPATH, option_xpath))
-                )
-                return option_xpath, el
-            except Exception:
-                return None, None
+        const primary = menus[menus.length - 1];
+        const parents = Array.from(primary.querySelectorAll('div[role="menuitem"]'));
+        const parent = parents.find(el => sections.some(label => norm(el.innerText).includes(label)));
+        if (!parent) {
+            done(null);
+            return;
+        }
 
-        target = None
-        target_xpath = None
-        for opt in option_labels_norm:
-            target_xpath, target = locate_option(opt)
-            if target is not None:
-                break
+        clickEl(parent);
 
-        if target is None or target_xpath is None:
-            return None
+        setTimeout(() => {
+            const menusAfter = openMenus();
+            let submenu = menusAfter.find(el => !primary.contains(el) || el !== primary);
+            if (!submenu) {
+                submenu = primary;
+            }
+            const radios = Array.from(submenu.querySelectorAll('div[role="menuitemradio"]'));
+            const target = radios.find(el => options.some(label => {
+                const txt = norm(el.innerText);
+                return txt === label || txt.includes(label);
+            }));
+            if (!target) {
+                done(null);
+                return;
+            }
+            clickEl(target);
+            setTimeout(() => {
+                done({ label: target.innerText.trim() });
+            }, 150);
+        }, 160);
+        """;
 
         try:
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target)
+            result_js = driver.execute_async_script(script, section_labels_norm, option_labels_norm)
         except Exception:
-            pass
-        time.sleep(0.1)
-        try:
-            ActionChains(driver).move_to_element(target).pause(0.05).click().perform()
-        except Exception:
-            try:
-                target.click()
-            except Exception:
-                try:
-                    driver.execute_script("arguments[0].click();", target)
-                except Exception:
-                    return None
+            result_js = None
 
-        end = time.time() + 3.0
-        while time.time() < end:
-            try:
-                current = driver.find_element(By.XPATH, target_xpath)
-            except StaleElementReferenceException:
-                time.sleep(0.1)
-                continue
-            except Exception:
-                break
-            try:
-                state = (current.get_attribute('aria-checked') or current.get_attribute('data-state') or '').lower()
-            except StaleElementReferenceException:
-                time.sleep(0.1)
-                continue
-            except Exception:
-                break
-            if state in ('true', 'checked'):
-                return (current.text or '').strip() or None
-            time.sleep(0.1)
-
-        try:
-            current = driver.find_element(By.XPATH, target_xpath)
-            state = (current.get_attribute('aria-checked') or current.get_attribute('data-state') or '').lower()
-            if state in ('true', 'checked'):
-                return (current.text or '').strip() or None
-        except Exception:
-            pass
+        if isinstance(result_js, dict) and result_js.get('label'):
+            return result_js['label']
         return None
 
     if orientation:
