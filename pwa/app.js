@@ -15,11 +15,14 @@
   const resolutionBtn = document.querySelector('button[data-action="apply-resolution"]');
   const fileEl = qs('#fileinput');
   const mediaDescEl = qs('#media-desc');
+  const storyboardFileInput = qs('#storyboard-fileinput');
+  const storyboardFilePathEl = qs('#storyboard-filepath');
   const scriptUpdatesEl = qs('#script-updates');
   const prevImg = qs('#preview-img');
   const prevVideo = qs('#preview-video');
   let currentObjectUrl = null;
   let lastUploadedPath = null;
+  let lastStoryboardPath = null;
 
   const defaultServer = localStorage.getItem('sora_server') || `${location.origin}`;
   serverInput.value = defaultServer;
@@ -88,7 +91,20 @@
   async function attachServerPath(path, label) {
     const data = await api('/api/attach', { method: 'POST', body: JSON.stringify({ path, click_plus: false }) });
     log(`${label || 'attach'}: ${JSON.stringify(data)}`);
-    if (data && data.ok) lastUploadedPath = path;
+    if (data && data.ok) {
+      lastUploadedPath = path;
+      if (filepathEl) filepathEl.value = path;
+    }
+    return data;
+  }
+
+  async function attachStoryboardPath(path, label) {
+    const data = await api('/api/storyboard-media', { method: 'POST', body: JSON.stringify({ path }) });
+    log(`${label || 'storyboard-attach'}: ${JSON.stringify(data)}`);
+    if (data && data.ok) {
+      lastStoryboardPath = path;
+      if (storyboardFilePathEl) storyboardFilePathEl.value = path;
+    }
     return data;
   }
 
@@ -96,6 +112,13 @@
     const path = filepathEl.value.trim();
     if (!path) return log('No filepath provided');
     await attachServerPath(path, 'attach');
+  }
+
+  async function doStoryboardAttachPath() {
+    if (!storyboardFilePathEl) return log('Storyboard path input missing');
+    const path = storyboardFilePathEl.value.trim();
+    if (!path) return log('No storyboard path provided');
+    await attachStoryboardPath(path, 'storyboard-attach(path)');
   }
 
   async function doStoryboard() {
@@ -179,6 +202,26 @@
     lastUploadedPath = path;
     if (filepathEl) filepathEl.value = path;
     await attachServerPath(path, 'attach(uploaded)');
+  }
+
+  async function doStoryboardUpload() {
+    if (!storyboardFileInput || !storyboardFileInput.files || !storyboardFileInput.files.length) {
+      if (lastStoryboardPath) return attachStoryboardPath(lastStoryboardPath, 'storyboard-attach(reuse)');
+      return log('No storyboard file selected');
+    }
+    const fd = new FormData();
+    fd.append('file', storyboardFileInput.files[0]);
+    const base = (localStorage.getItem('sora_server') || serverInput.value || '').replace(/\/$/, '');
+    const url = `${base}/api/upload`;
+    const res = await fetch(url, { method: 'POST', body: fd });
+    if (!res.ok) return log(`storyboard upload failed: ${res.status}`);
+    const data = await res.json();
+    log(`storyboard-upload: ${JSON.stringify(data)}`);
+    if (!data.paths || !data.paths.length) return;
+    const path = data.paths[0];
+    lastStoryboardPath = path;
+    if (storyboardFilePathEl) storyboardFilePathEl.value = path;
+    await attachStoryboardPath(path, 'storyboard-attach(uploaded)');
   }
 
   async function doSmartPlus() {
@@ -323,6 +366,8 @@
         if (action === 'attach-path') return await doAttachPath();
         if (action === 'upload-and-attach') return await doUploadAndAttach();
         if (action === 'apply-storyboard') return await doStoryboard();
+        if (action === 'storyboard-upload') return await doStoryboardUpload();
+        if (action === 'storyboard-attach-path') return await doStoryboardAttachPath();
         if (action === 'apply-model') return await doModel();
         if (action === 'apply-orientation') return await doOrientation();
         if (action === 'apply-duration') return await doDuration();
@@ -370,5 +415,10 @@
   fileEl && fileEl.addEventListener('change', (e) => {
     const f = fileEl.files && fileEl.files[0];
     showPreview(f || null);
+  });
+
+  storyboardFileInput && storyboardFileInput.addEventListener('change', () => {
+    lastStoryboardPath = null;
+    if (storyboardFilePathEl) storyboardFilePathEl.value = '';
   });
 })();

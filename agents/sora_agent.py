@@ -365,6 +365,57 @@ def reveal_input_file(driver, el):
         pass
 
 
+def _inject_file_via_js_global(driver, el, attach_path: str) -> bool:
+    try:
+        with open(attach_path, 'rb') as fh:
+            data_b64 = base64.b64encode(fh.read()).decode('ascii')
+    except Exception:
+        return False
+
+    name = os.path.basename(attach_path)
+    mime = mimetypes.guess_type(attach_path)[0] or 'application/octet-stream'
+
+    try:
+        return bool(
+            driver.execute_async_script(
+                """
+                const el = arguments[0];
+                const b64 = arguments[1];
+                const name = arguments[2];
+                const mime = arguments[3];
+                const done = arguments[arguments.length - 1];
+                try {
+                    if (typeof window.DataTransfer === 'undefined') {
+                        done(false);
+                        return;
+                    }
+                    const binary = atob(b64);
+                    const len = binary.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; ++i) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    const file = new File([bytes], name, { type: mime || 'application/octet-stream' });
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files').set;
+                    setter.call(el, dt.files);
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    done(true);
+                } catch (err) {
+                    done(false);
+                }
+                """,
+                el,
+                data_b64,
+                name,
+                mime,
+            )
+        )
+    except Exception:
+        return False
+
+
 def _accept_allows_path(accept: str, path: str) -> bool:
     if not accept:
         return True
@@ -497,66 +548,8 @@ def attach_media_by_path(driver, path: str, click_plus: bool = True, timeout: in
 
     attach_path = _convert_image_if_needed(path, accept)
 
-    payload_cache: dict[str, str] | None = None
-
-    def _ensure_payload() -> dict[str, str] | None:
-        nonlocal payload_cache
-        if payload_cache is not None:
-            return payload_cache
-        try:
-            with open(attach_path, 'rb') as fh:
-                data_b64 = base64.b64encode(fh.read()).decode('ascii')
-            name = os.path.basename(attach_path)
-            mime = mimetypes.guess_type(attach_path)[0] or 'application/octet-stream'
-            payload_cache = {'b64': data_b64, 'name': name, 'mime': mime}
-            return payload_cache
-        except Exception:
-            return None
-
     def _inject_file_via_js(el) -> bool:
-        payload = _ensure_payload()
-        if not payload:
-            return False
-        try:
-            return bool(
-                driver.execute_async_script(
-                    """
-                    const el = arguments[0];
-                    const b64 = arguments[1];
-                    const name = arguments[2];
-                    const mime = arguments[3];
-                    const done = arguments[arguments.length - 1];
-                    try {
-                        if (typeof window.DataTransfer === 'undefined') {
-                            done(false);
-                            return;
-                        }
-                        const binary = atob(b64);
-                        const len = binary.length;
-                        const bytes = new Uint8Array(len);
-                        for (let i = 0; i < len; ++i) {
-                            bytes[i] = binary.charCodeAt(i);
-                        }
-                        const file = new File([bytes], name, { type: mime || 'application/octet-stream' });
-                        const dt = new DataTransfer();
-                        dt.items.add(file);
-                        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'files').set;
-                        setter.call(el, dt.files);
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                        done(true);
-                    } catch (err) {
-                        console.error('inject error', err);
-                        done(false);
-                    }
-                    """,
-                    el,
-                    payload['b64'],
-                    payload['name'],
-                    payload['mime'],
-                )
-            )
-        except Exception:
-            return False
+        return _inject_file_via_js_global(driver, el, attach_path)
 
     def _set_file(el) -> bool:
         if _inject_file_via_js(el):
@@ -800,13 +793,13 @@ def apply_settings(
             if (!submenu) {
                 submenu = primary;
             }
-        const radios = Array.from(submenu.querySelectorAll('div[role="menuitemradio"]'));
-        const normalizedOptions = options.map(norm);
-        const targetExact = radios.find(el => normalizedOptions.includes(norm(el.innerText)));
-        const target = targetExact || radios.find(el => {
-            const txt = norm(el.innerText);
-            return normalizedOptions.some(label => txt.includes(label));
-        });
+            const radios = Array.from(submenu.querySelectorAll('div[role="menuitemradio"]'));
+            const normalizedOptions = options.map(norm);
+            const targetExact = radios.find(el => normalizedOptions.includes(norm(el.innerText)));
+            const target = targetExact || radios.find(el => {
+                const txt = norm(el.innerText);
+                return normalizedOptions.some(label => txt.includes(label));
+            });
             if (!target) {
                 done(null);
                 return;
@@ -816,7 +809,7 @@ def apply_settings(
                 done({ label: target.innerText.trim() });
             }, 150);
         }, 160);
-        """;
+        """
 
         try:
             result_js = driver.execute_async_script(script, section_labels_norm, option_labels_norm)
@@ -827,62 +820,71 @@ def apply_settings(
             return result_js['label']
         return None
 
-    if orientation:
-        opt = 'portrait' if str(orientation).lower().startswith('p') else 'landscape'
-        selected = select_menu_option(['orientation'], [opt])
-        if selected:
-            result["orientation"] = selected
 
-    if duration is not None:
-        seconds = int(duration)
-        labels = [
-            f"{seconds} seconds",
-            f"{seconds}s",
-            f"{seconds} sec",
-            f"{seconds} second",
-        ]
-        selected = select_menu_option(['duration', 'length'], labels)
-        if selected:
-            match = re.search(r"(\d+)", selected)
-            if match:
-                result["duration"] = int(match.group(1))
-            else:
-                result["duration"] = selected
+def attach_storyboard_media(driver, path: str, timeout: int = 20) -> bool:
+    if not os.path.isabs(path):
+        path = os.path.abspath(path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
 
-    if model:
-        # Accept values like 'sora 2 pro', 'pro', 'sora 2'
-        m = str(model).strip().lower()
-        if 'pro' in m:
-            want = 'sora 2 pro'
-        else:
-            want = 'sora 2'
-        selected = select_menu_option(['model'], [want])
-        if selected:
-            result["model"] = selected
+    result = driver.execute_script(
+        """
+        const tx = Array.from(document.querySelectorAll('textarea')).find(el => {
+            const ph = (el.getAttribute('placeholder') || '').toLowerCase();
+            return ph.includes('describe updates to your script');
+        });
+        if (!tx) return null;
+        let node = tx.parentElement;
+        while (node) {
+            const input = node.querySelector('input[type="file"]');
+            if (input) {
+                const btn = node.querySelector('button');
+                return [input, btn];
+            }
+            node = node.parentElement;
+        }
+        return null;
+        """
+    )
 
-    if resolution:
-        res = str(resolution).strip().lower()
-        labels = [res]
-        if res.startswith('high'):
-            labels.extend(['high quality', 'high'])
-        elif res.startswith('standard'):
-            labels.extend(['standard'])
-        selected = select_menu_option(['quality', 'resolution'], labels)
-        if selected:
-            result["resolution"] = selected
+    if not result or not isinstance(result, (list, tuple)) or not result[0]:
+        return False
 
-    # Close menu if still open (best-effort)
-    if is_menu_open():
+    input_el = result[0]
+    plus_btn = result[1] if len(result) > 1 else None
+
+    try:
+        if plus_btn is not None:
+            plus_btn.click()
+            time.sleep(0.1)
+    except Exception:
+        pass
+
+    accept = ''
+    try:
+        accept = input_el.get_attribute('accept') or ''
+    except Exception:
+        accept = ''
+
+    attach_path = _convert_image_if_needed(path, accept)
+
+    try:
+        reveal_input_file(driver, input_el)
+        input_el.send_keys(attach_path)
         try:
-            body = driver.find_element(By.TAG_NAME, 'body')
-            body.send_keys(Keys.ESCAPE)
+            driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", input_el)
         except Exception:
-            try:
-                driver.execute_script("document.activeElement && document.activeElement.blur && document.activeElement.blur();")
-            except Exception:
-                pass
+            pass
+        time.sleep(0.4)
+        return True
+    except Exception:
+        pass
 
-    return result
+    if _inject_file_via_js_global(driver, input_el, attach_path):
+        time.sleep(0.4)
+        return True
+
+    return False
 
 
 def wait_for_any_text(driver, timeout: int = 30):

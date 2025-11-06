@@ -63,6 +63,8 @@ All endpoints operate against the currently attached Chrome (defaults to debugge
   - Fills the “Describe updates to your script…” composer field.
 - `POST /api/storyboard` `{ scenes: ["scene 1", ...] }`
   - Opens the storyboard and fills each scene textarea.
+- `POST /api/storyboard-media` `{ path }`
+  - Attaches media to the storyboard-specific plus button (the floating uploader inside the storyboard panel).
 - `POST /api/settings` `{ model?, orientation?, duration?, resolution? }`
   - Opens the composer settings menu and selects the requested option(s). Each field is optional and can be sent one at a time. The response echoes the label Sora actually selected.
 
