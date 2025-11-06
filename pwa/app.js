@@ -118,9 +118,8 @@
     if (!storyboardFilePathEl) return log('Storyboard path input missing');
     const mediaPath = storyboardFilePathEl.value.trim();
     if (!mediaPath) return log('No storyboard path provided');
-    // Use combined storyboard endpoint to ensure the composer is open and attach without toggling repeatedly
-    const payload = { scenes: [], script_updates: '', media_path: mediaPath };
-    const data = await api('/api/storyboard', { method: 'POST', body: JSON.stringify(payload) });
+    // Use dedicated attach-only endpoint that mirrors Apply Storyboard's ensure+open behavior
+    const data = await api('/api/storyboard-attach-only', { method: 'POST', body: JSON.stringify({ path: mediaPath }) });
     log(`storyboard-attach(path): ${JSON.stringify(data)}`);
   }
 

@@ -482,6 +482,45 @@ class StoryboardMediaHandler(BaseHandler):
         self.write(json.dumps({"ok": bool(ok)}))
 
 
+class StoryboardAttachOnlyHandler(BaseHandler):
+    async def post(self):
+        body = json.loads(self.request.body or b"{}")
+        path = body.get("path")
+        if not path:
+            self.set_status(400)
+            return self.finish(json.dumps({"ok": False, "error": "path required"}))
+        await HUB.emit("storyboard_attach_only", {"path": path})
+        async with ACTION_LOCK:
+            await _ensure_chrome_open(DEFAULT_URL)
+            def _attach():
+                with build_chrome_attached(DEBUGGER_PORT, chrome_binary=None) as d:
+                    try:
+                        current = d.current_url or ""
+                    except Exception:
+                        current = ""
+                    normalized_current = current.rstrip("/")
+                    normalized_target = DEFAULT_URL.rstrip("/")
+                    if not normalized_current.startswith(normalized_target):
+                        d.get(DEFAULT_URL)
+                        wait_for_page_loaded(d, timeout=30)
+                    else:
+                        try:
+                            wait_for_page_loaded(d, timeout=30)
+                        except Exception:
+                            pass
+                    try:
+                        wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
+                    except Exception:
+                        pass
+                    # Ensure storyboard panel is open like full Apply does
+                    ctrls = find_page_controls(d, timeout=10)
+                    _ = click_safely(d, ctrls.get("storyboard"), force=False)
+                    time.sleep(0.2)
+                    return attach_storyboard_media(d, path, timeout=20)
+            ok = await asyncio.get_event_loop().run_in_executor(None, _attach)
+        await HUB.emit("storyboard_attach_only_result", {"ok": bool(ok)})
+        self.write(json.dumps({"ok": bool(ok)}))
+
 class SettingsHandler(BaseHandler):
     async def post(self):
         body = json.loads(self.request.body or b"{}")
@@ -632,6 +671,7 @@ def make_app() -> tornado.web.Application:
         (r"/api/storyboard-media", StoryboardMediaHandler),
         (r"/api/settings", SettingsHandler),
         (r"/api/compose", ComposeHandler),
+        (r"/api/storyboard-attach-only", StoryboardAttachOnlyHandler),
         (r"/api/upload", UploadHandler),
         (r"/api/preview", PreviewHandler),
         (r"/ws", WSLogs),
