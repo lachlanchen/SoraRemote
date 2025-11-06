@@ -1040,6 +1040,7 @@ def fill_script_updates(driver, text: str, ensure_storyboard: bool = True, timeo
     const done = arguments[arguments.length - 1];
     try {
         const norm = (str) => (str || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
         const findPwaTextarea = () => {
             const labels = Array.from(document.querySelectorAll('label'));
             for (const label of labels) {
@@ -1053,19 +1054,34 @@ def fill_script_updates(driver, text: str, ensure_storyboard: bool = True, timeo
             }
             return null;
         };
+
         const findSoraComposer = () => Array.from(document.querySelectorAll('textarea')).find(el => {
             const ph = norm(el.getAttribute('placeholder'));
             return ph.includes('describe updates to your script');
         });
+
         // Prefer Sora's composer; fallback to PWA card if not present
         const target = findSoraComposer() || findPwaTextarea();
-        if (!target) {
-            done(false);
-            return;
-        }
+        if (!target) return done(false);
+
+        // Use native setter to ensure frameworks (React) see the change
+        const setValue = (el, value) => {
+            const proto = Object.getPrototypeOf(el);
+            const desc = Object.getOwnPropertyDescriptor(proto, 'value') || Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+            if (desc && desc.set) {
+                desc.set.call(el, value);
+            } else {
+                el.value = value;
+            }
+        };
+
         target.scrollIntoView({ block: 'center' });
-        target.value = text;
+        target.focus({ preventScroll: true });
+        // Clear then set to trigger real updates
+        setValue(target, '');
         target.dispatchEvent(new Event('input', { bubbles: true }));
+        setValue(target, text);
+        target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste', data: text }));
         target.dispatchEvent(new Event('change', { bubbles: true }));
         done(true);
     } catch (err) {
