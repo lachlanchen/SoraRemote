@@ -27,26 +27,6 @@
         <button data-action="list">List Controls</button>
       </section>
 
-      <!-- Upload block moved above the PLUS row for faster flow -->
-      <section>
-        <label>Upload (mobile/desktop) and attach</label>
-        <input
-          id="fileinput"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,video/mp4,video/webm,video/quicktime"
-        />
-        <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
-          <button data-action="upload-and-attach">Upload & Attach</button>
-        </div>
-        <div id="preview-wrapper">
-          <div class="muted small">Preview</div>
-          <div id="preview-area">
-            <img id="preview-img" alt="preview" hidden />
-            <video id="preview-video" controls hidden></video>
-          </div>
-        </div>
-      </section>
-
       <section class="row">
         <button data-action="plus">Plus</button>
         <button data-action="storyboard">Storyboard</button>
@@ -55,10 +35,64 @@
       </section>
 
       <section>
-        <label for="media-desc">Media description</label>
-        <textarea id="media-desc" placeholder="Optionally describe your video..."></textarea>
-        <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
-          <button data-action="describe">Apply Description</button>
+        <label>Settings</label>
+        <div class="row" style="grid-template-columns: repeat(4,minmax(0,1fr));">
+          <select id="model">
+            <option value="sora 2">Sora 2</option>
+            <option value="sora 2 pro">Sora 2 Pro</option>
+          </select>
+          <select id="orientation">
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+          </select>
+          <select id="duration">
+            <option value="10">10s</option>
+            <option value="15">15s</option>
+          </select>
+          <div id="resolution-wrapper">
+            <select id="resolution">
+              <option value="standard">Standard</option>
+              <option value="high">High</option>
+            </select>
+            <div class="small muted" id="resolution-note">Available for Sora 2 Pro</div>
+          </div>
+        </div>
+        <div class="row" style="grid-template-columns: repeat(4,minmax(0,1fr));">
+          <button data-action="apply-model">Set Model</button>
+          <button data-action="apply-orientation">Set Orientation</button>
+          <button data-action="apply-duration">Set Duration</button>
+          <button data-action="apply-resolution">Set Resolution</button>
+        </div>
+      </section>
+
+      <section>
+        <label>Media</label>
+        <div class="stack">
+          <div class="card">
+            <label class="sub">Upload & Attach</label>
+            <input
+              id="fileinput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,video/mp4,video/webm,video/quicktime"
+            />
+            <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
+              <button data-action="upload-and-attach">Upload & Attach</button>
+            </div>
+            <div id="preview-wrapper">
+              <div class="muted small">Preview</div>
+              <div id="preview-area">
+                <img id="preview-img" alt="preview" hidden />
+                <video id="preview-video" controls hidden></video>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <label class="sub" for="media-desc">Media description</label>
+            <textarea id="media-desc" placeholder="Optionally describe your video..."></textarea>
+            <div class="row" style="grid-template-columns: repeat(1,minmax(0,1fr));">
+              <button data-action="describe">Apply Description</button>
+            </div>
+          </div>
         </div>
       </section>
 
