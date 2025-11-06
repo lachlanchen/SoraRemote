@@ -39,3 +39,42 @@ Downloads and profile
   - Download up to 2 files to `./downloads/sora`: `./bin/sora_download.sh --max 2`
   - Change output folder: `OUT_DIR=$HOME/Videos/sora ./bin/sora_download.sh --max 1`
 - The agent removes any stale `chromedriver` from PATH before launching, letting Selenium Manager download a matching driver for your installed Chrome automatically.
+
+## Control server + PWA
+
+Run the Tornado server to expose a REST API and the web controller:
+
+```
+python server/app.py
+# -> listens on http://0.0.0.0:8791 and serves the PWA at /
+```
+
+### Key endpoints
+
+All endpoints operate against the currently attached Chrome (defaults to debugger port `9333`).
+
+- `POST /api/open` `{ url? }`
+  - Navigates the attached Chrome tab to the given URL (defaults to Sora Explore).
+- `POST /api/attach` `{ path, click_plus? }`
+  - Uploads media. Uses DataTransfer injection and clears existing media automatically. `click_plus` defaults to `false` to avoid launching the OS file picker.
+- `POST /api/describe` `{ text }`
+  - Fills the “Optionally describe your video…” textarea beside the media preview.
+- `POST /api/storyboard` `{ scenes: ["scene 1", ...] }`
+  - Opens the storyboard and fills each scene textarea.
+- `POST /api/settings` `{ model?, orientation?, duration?, resolution? }`
+  - Opens the composer settings menu and selects the requested option(s). Each field is optional and can be sent one at a time. The response echoes the label Sora actually selected.
+
+Use `GET /api/actions` to inspect the current button state (enabled/disabled/displayed) and `POST /api/click` with `{ key: "plus" | "storyboard" | "settings" | "create" | "profile" }` for direct button presses.
+
+### PWA controls
+
+Open `http://0.0.0.0:8791` (or your chosen host) after starting `server/app.py`.
+
+Highlights:
+
+- Upload media via the file picker or by pasting a path, then click **Plus** to send it to Sora without reopening the system file dialog.
+- Apply a media description in the “Media description” box — the textarea mirrors the one in the composer.
+- Independent buttons for **Set Model**, **Set Orientation**, **Set Duration**, and **Set Resolution** make it easy to test settings one at a time. The server uses in-page JavaScript to select the exact radio option, so no accidental “three dots” menu clicks.
+- The live debug log shows every API call and the values returned from Sora (e.g., the selected model or duration).
+
+By default the server reuses Chrome on `--remote-debugging-port 9333` and keeps uploads in `./uploads` unless `SORA_UPLOADS_DIR` is set.
