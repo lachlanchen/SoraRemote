@@ -116,9 +116,12 @@
 
   async function doStoryboardAttachPath() {
     if (!storyboardFilePathEl) return log('Storyboard path input missing');
-    const path = storyboardFilePathEl.value.trim();
-    if (!path) return log('No storyboard path provided');
-    await attachStoryboardPath(path, 'storyboard-attach(path)');
+    const mediaPath = storyboardFilePathEl.value.trim();
+    if (!mediaPath) return log('No storyboard path provided');
+    // Use combined storyboard endpoint to ensure the composer is open and attach without toggling repeatedly
+    const payload = { scenes: [], script_updates: '', media_path: mediaPath };
+    const data = await api('/api/storyboard', { method: 'POST', body: JSON.stringify(payload) });
+    log(`storyboard-attach(path): ${JSON.stringify(data)}`);
   }
 
   async function doStoryboard() {
@@ -232,7 +235,7 @@
 
   async function doStoryboardUpload() {
     if (!storyboardFileInput || !storyboardFileInput.files || !storyboardFileInput.files.length) {
-      if (lastStoryboardPath) return attachStoryboardPath(lastStoryboardPath, 'storyboard-attach(reuse)');
+      if (lastStoryboardPath) return doStoryboardAttachPath();
       return log('No storyboard file selected');
     }
     const fd = new FormData();
@@ -244,10 +247,17 @@
     const data = await res.json();
     log(`storyboard-upload: ${JSON.stringify(data)}`);
     if (!data.paths || !data.paths.length) return;
-    const path = data.paths[0];
-    lastStoryboardPath = path;
-    if (storyboardFilePathEl) storyboardFilePathEl.value = path;
-    await attachStoryboardPath(path, 'storyboard-attach(uploaded)');
+    const mediaPath = data.paths[0];
+    lastStoryboardPath = mediaPath;
+    if (storyboardFilePathEl) storyboardFilePathEl.value = mediaPath;
+    // Attach via combined endpoint to mirror Apply Storyboard behavior
+    const payload = { scenes: [], script_updates: '', media_path: mediaPath };
+    const attachRes = await api('/api/storyboard', { method: 'POST', body: JSON.stringify(payload) });
+    log(`storyboard-attach(uploaded): ${JSON.stringify(attachRes)}`);
+  }
+
+  async function doOpenStoryboardPanel() {
+    return await doClick('storyboard');
   }
 
   async function doSmartPlus() {
@@ -394,6 +404,7 @@
         if (action === 'apply-storyboard') return await doStoryboard();
         if (action === 'storyboard-upload') return await doStoryboardUpload();
         if (action === 'storyboard-attach-path') return await doStoryboardAttachPath();
+        if (action === 'open-storyboard-panel') return await doOpenStoryboardPanel();
         if (action === 'apply-model') return await doModel();
         if (action === 'apply-orientation') return await doOrientation();
         if (action === 'apply-duration') return await doDuration();
