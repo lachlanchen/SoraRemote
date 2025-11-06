@@ -800,11 +800,13 @@ def apply_settings(
             if (!submenu) {
                 submenu = primary;
             }
-            const radios = Array.from(submenu.querySelectorAll('div[role="menuitemradio"]'));
-            const target = radios.find(el => options.some(label => {
-                const txt = norm(el.innerText);
-                return txt === label || txt.includes(label);
-            }));
+        const radios = Array.from(submenu.querySelectorAll('div[role="menuitemradio"]'));
+        const normalizedOptions = options.map(norm);
+        const targetExact = radios.find(el => normalizedOptions.includes(norm(el.innerText)));
+        const target = targetExact || radios.find(el => {
+            const txt = norm(el.innerText);
+            return normalizedOptions.some(label => txt.includes(label));
+        });
             if (!target) {
                 done(null);
                 return;
