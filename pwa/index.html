@@ -121,14 +121,6 @@
       </section>
 
       <section>
-        <label for="scenes">Storyboard (one scene per line)</label>
-        <textarea id="scenes" placeholder="Scene 1 text\nScene 2 text"></textarea>
-        <div class="row" style="grid-template-columns: repeat(2,minmax(0,1fr));">
-          <button data-action="apply-storyboard">Apply Storyboard</button>
-        </div>
-      </section>
-
-      <section>
         <label>Settings</label>
         <div class="row" style="grid-template-columns: repeat(4,minmax(0,1fr));">
           <select id="model">
@@ -156,6 +148,23 @@
           <button data-action="apply-orientation">Set Orientation</button>
           <button data-action="apply-duration">Set Duration</button>
           <button data-action="apply-resolution">Set Resolution</button>
+        </div>
+      </section>
+
+      <section>
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" placeholder="Describe your video..."></textarea>
+        <div class="row">
+          <button data-action="type">Send Text</button>
+          <button data-action="compose">Compose & Create</button>
+        </div>
+      </section>
+
+      <section>
+        <label for="scenes">Storyboard (one scene per line)</label>
+        <textarea id="scenes" placeholder="Scene 1 text\nScene 2 text"></textarea>
+        <div class="row" style="grid-template-columns: repeat(2,minmax(0,1fr));">
+          <button data-action="apply-storyboard">Apply Storyboard</button>
         </div>
       </section>
 
