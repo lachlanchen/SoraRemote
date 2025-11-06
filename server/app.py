@@ -311,14 +311,29 @@ class ScriptUpdateHandler(BaseHandler):
                         const text = arguments[0];
                         const done = arguments[arguments.length - 1];
                         try {
-                            const target = Array.from(document.querySelectorAll('textarea')).find(el => {
-                                const ph = (el.getAttribute('placeholder') || '').toLowerCase();
+                            const norm = (str) => (str || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                            const findByLabel = () => {
+                                const labels = Array.from(document.querySelectorAll('label'));
+                                for (const label of labels) {
+                                    if (norm(label.textContent) === 'script updates') {
+                                        const card = label.closest('.card') || label.parentElement;
+                                        if (card) {
+                                            const ta = card.querySelector('textarea');
+                                            if (ta) return ta;
+                                        }
+                                    }
+                                }
+                                return null;
+                            };
+                            const target = findByLabel() || Array.from(document.querySelectorAll('textarea')).find(el => {
+                                const ph = norm(el.getAttribute('placeholder'));
                                 return ph.includes('describe updates to your script');
                             });
                             if (!target) {
                                 done(false);
                                 return;
                             }
+                            target.scrollIntoView({ block: 'center' });
                             target.value = text;
                             target.dispatchEvent(new Event('input', { bubbles: true }));
                             target.dispatchEvent(new Event('change', { bubbles: true }));
