@@ -124,8 +124,32 @@
   async function doStoryboard() {
     const lines = (scenesEl.value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     const scriptUpdates = scriptUpdatesEl ? scriptUpdatesEl.value || '' : '';
+    let mediaPath = storyboardFilePathEl ? (storyboardFilePathEl.value || '').trim() : '';
     if (!lines.length && !scriptUpdates) return log('Provide scenes or script updates');
+    // Inline upload if a file is selected but path is empty
+    if ((!mediaPath || !mediaPath.length) && storyboardFileInput && storyboardFileInput.files && storyboardFileInput.files.length) {
+      try {
+        const fd = new FormData();
+        fd.append('file', storyboardFileInput.files[0]);
+        const base = (localStorage.getItem('sora_server') || serverInput.value || '').replace(/\/$/, '');
+        const url = `${base}/api/upload`;
+        const res = await fetch(url, { method: 'POST', body: fd });
+        if (!res.ok) {
+          log(`storyboard inline upload failed: ${res.status}`);
+        } else {
+          const up = await res.json();
+          log(`storyboard-inline-upload: ${JSON.stringify(up)}`);
+          if (up.paths && up.paths[0]) {
+            mediaPath = up.paths[0];
+            if (storyboardFilePathEl) storyboardFilePathEl.value = mediaPath;
+          }
+        }
+      } catch (err) {
+        log(`ERR(storyboard inline upload): ${err.message}`);
+      }
+    }
     const payload = { scenes: lines, script_updates: scriptUpdates };
+    if (mediaPath) payload.media_path = mediaPath;
     const data = await api('/api/storyboard', { method: 'POST', body: JSON.stringify(payload) });
     log(`storyboard: ${JSON.stringify(data)}`);
   }

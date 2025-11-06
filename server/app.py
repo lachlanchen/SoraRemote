@@ -375,6 +375,7 @@ class StoryboardHandler(BaseHandler):
         body = json.loads(self.request.body or b"{}")
         scenes = body.get("scenes") or []
         script_updates = body.get("script_updates") or ""
+        media_path = body.get("media_path") or ""
         if not isinstance(scenes, list):
             self.set_status(400)
             return self.finish(json.dumps({"ok": False, "error": "scenes must be a list"}))
@@ -404,9 +405,15 @@ class StoryboardHandler(BaseHandler):
                     filled = fill_storyboard(d, scenes, ensure_storyboard=True, timeout=30)
                     if script_updates:
                         fill_script_updates(d, script_updates, ensure_storyboard=False, timeout=20)
-                    return filled
-            filled = await asyncio.get_event_loop().run_in_executor(None, _fill)
-        self.write(json.dumps({"ok": True, "filled": int(filled)}))
+                    attached = None
+                    if media_path:
+                        try:
+                            attached = attach_storyboard_media(d, media_path, timeout=20)
+                        except Exception:
+                            attached = False
+                    return filled, attached
+            filled, attached = await asyncio.get_event_loop().run_in_executor(None, _fill)
+        self.write(json.dumps({"ok": True, "filled": int(filled), "attached": bool(attached) if attached is not None else None}))
 
 
 class StoryboardMediaHandler(BaseHandler):
@@ -435,9 +442,19 @@ class StoryboardMediaHandler(BaseHandler):
                             wait_for_page_loaded(d, timeout=30)
                         except Exception:
                             pass
-                    ctrls = find_page_controls(d, timeout=10)
-                    _ = click_safely(d, ctrls.get("storyboard"), force=False)
-                    time.sleep(0.2)
+                    # Only switch to Storyboard if the storyboard composer isn't visible
+                    try:
+                        in_sb = bool(
+                            d.execute_script(
+                                "return !!Array.from(document.querySelectorAll('textarea')).find(el => ((el.getAttribute('placeholder')||'').toLowerCase()).includes('describe updates to your script'));"
+                            )
+                        )
+                    except Exception:
+                        in_sb = False
+                    if not in_sb:
+                        ctrls = find_page_controls(d, timeout=10)
+                        _ = click_safely(d, ctrls.get("storyboard"), force=False)
+                        time.sleep(0.2)
                     return attach_storyboard_media(d, path, timeout=20)
             ok = await asyncio.get_event_loop().run_in_executor(None, _attach)
         await HUB.emit("storyboard_media_result", {"ok": bool(ok)})

@@ -358,7 +358,12 @@ def list_file_inputs_with_meta(driver) -> List[Tuple[object, bool, str]]:
 def reveal_input_file(driver, el):
     try:
         driver.execute_script(
-            "arguments[0].style.display='block'; arguments[0].style.visibility='visible'; arguments[0].removeAttribute('hidden');",
+            "arguments[0].style.display='block';"
+            "arguments[0].style.visibility='visible';"
+            "arguments[0].removeAttribute('hidden');"
+            "arguments[0].removeAttribute('disabled');"
+            "arguments[0].removeAttribute('aria-disabled');"
+            "arguments[0].removeAttribute('data-disabled');",
             el,
         )
     except Exception:
@@ -827,25 +832,83 @@ def attach_storyboard_media(driver, path: str, timeout: int = 20) -> bool:
     if not os.path.exists(path):
         raise FileNotFoundError(f"File not found: {path}")
 
-    result = driver.execute_script(
-        """
-        const tx = Array.from(document.querySelectorAll('textarea')).find(el => {
-            const ph = (el.getAttribute('placeholder') || '').toLowerCase();
-            return ph.includes('describe updates to your script');
-        });
-        if (!tx) return null;
-        let node = tx.parentElement;
-        while (node) {
-            const input = node.querySelector('input[type="file"]');
-            if (input) {
-                const btn = node.querySelector('button');
-                return [input, btn];
+    def _locate():
+        return driver.execute_script(
+            r"""
+        const norm = (val) => (val || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const textareas = Array.from(document.querySelectorAll('textarea'));
+        const sceneAnchor = textareas.find(el => norm(el.getAttribute('placeholder')).includes('describe this scene'));
+        const updatesAnchor = textareas.find(el => norm(el.getAttribute('placeholder')).includes('describe updates to your script'));
+
+        // Precise: if we have the Storyboard update composer, climb to its container
+        if (updatesAnchor) {
+            let node = updatesAnchor.parentElement;
+            let hops = 0;
+            while (node && hops < 10) {
+                const inputs = Array.from(node.querySelectorAll('input[type="file"]')).filter(i => !i.disabled);
+                if (inputs.length) {
+                    const trigger = node.querySelector('button');
+                    return [inputs[0], trigger];
+                }
+                node = node.parentElement;
+                hops++;
             }
-            node = node.parentElement;
         }
-        return null;
-        """
-    )
+        const anchorRect = (sceneAnchor || updatesAnchor) ? (sceneAnchor || updatesAnchor).getBoundingClientRect() : null;
+
+        const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+        if (!inputs.length) return null;
+
+        const scoreInput = (input) => {
+            const rect = input.getBoundingClientRect();
+            let score = anchorRect ? Math.hypot(rect.left - anchorRect.left, rect.top - anchorRect.top) : Math.abs(rect.top);
+            let node = input.parentElement;
+            while (node) {
+                const text = norm(node.textContent);
+                if (text.includes('storyboard media')) score -= 400;
+                if (text.includes('storyboard')) score -= 200;
+                if (text.includes('scene')) score -= 120;
+                if (text.includes('describe updates to your script')) score += 40;
+                node = node.parentElement;
+            }
+            return score;
+        };
+
+        let bestInput = null;
+        let bestScore = Number.POSITIVE_INFINITY;
+        for (const input of inputs) {
+            if (input.disabled) continue;
+            const score = scoreInput(input);
+            if (score < bestScore) {
+                bestInput = input;
+                bestScore = score;
+            }
+        }
+
+        if (!bestInput) {
+            bestInput = inputs.find(el => !el.disabled) || inputs[0];
+        }
+
+        if (!bestInput) return null;
+
+        const findTrigger = (input) => {
+            let btn = input.closest('button');
+            if (btn) return btn;
+            let node = input.parentElement;
+            while (node) {
+                btn = node.querySelector('button');
+                if (btn) return btn;
+                node = node.parentElement;
+            }
+            return null;
+        };
+
+        const trigger = findTrigger(bestInput);
+        return [bestInput, trigger];
+            """
+        )
+
+    result = _locate()
 
     if not result or not isinstance(result, (list, tuple)) or not result[0]:
         return False
@@ -853,12 +916,39 @@ def attach_storyboard_media(driver, path: str, timeout: int = 20) -> bool:
     input_el = result[0]
     plus_btn = result[1] if len(result) > 1 else None
 
-    try:
-        if plus_btn is not None:
-            plus_btn.click()
-            time.sleep(0.1)
-    except Exception:
-        pass
+    def _descriptor(el) -> str:
+        try:
+            return ((el.get_attribute("aria-label") or "") + " " + (el.text or "")).lower()
+        except Exception:
+            return ""
+
+    def _try_native(el, attach_path_local: str) -> bool:
+        try:
+            reveal_input_file(driver, el)
+            el.send_keys(attach_path_local)
+            try:
+                driver.execute_script("arguments[0].dispatchEvent(new Event('input', {bubbles:true}));", el)
+                driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", el)
+            except Exception:
+                pass
+            time.sleep(0.4)
+            return True
+        except Exception:
+            return False
+
+    def _try_inject(el, attach_path_local: str) -> bool:
+        try:
+            if _inject_file_via_js_global(driver, el, attach_path_local):
+                time.sleep(0.4)
+                return True
+        except Exception:
+            return False
+        return False
+
+    def _attempt(el, attach_path_local: str) -> bool:
+        if _try_native(el, attach_path_local):
+            return True
+        return _try_inject(el, attach_path_local)
 
     accept = ''
     try:
@@ -868,21 +958,51 @@ def attach_storyboard_media(driver, path: str, timeout: int = 20) -> bool:
 
     attach_path = _convert_image_if_needed(path, accept)
 
-    try:
-        reveal_input_file(driver, input_el)
-        input_el.send_keys(attach_path)
-        try:
-            driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", input_el)
-        except Exception:
-            pass
-        time.sleep(0.4)
+    if _attempt(input_el, attach_path):
         return True
-    except Exception:
-        pass
 
-    if _inject_file_via_js_global(driver, input_el, attach_path):
-        time.sleep(0.4)
-        return True
+    input_disabled = False
+    try:
+        input_disabled = not input_el.is_enabled()
+    except Exception:
+        try:
+            input_disabled = input_el.get_attribute('disabled') is not None
+        except Exception:
+            input_disabled = False
+
+    if plus_btn is not None:
+        label = _descriptor(plus_btn)
+        should_click = input_disabled or any(token in label for token in ("upload", "attach", "media", "plus", "add", "storyboard"))
+        if should_click:
+            try:
+                driver.execute_script(
+                    "if (window.PointerEvent) {"
+                    "  arguments[0].dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));"
+                    "  arguments[0].dispatchEvent(new PointerEvent('pointerup', {bubbles:true}));"
+                    "} else {"
+                    "  arguments[0].dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));"
+                    "  arguments[0].dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));"
+                    "}",
+                    plus_btn,
+                )
+            except Exception:
+                try:
+                    driver.execute_script("arguments[0].click();", plus_btn)
+                except Exception:
+                    pass
+            time.sleep(0.2)
+            result = _locate()
+            if result and isinstance(result, (list, tuple)) and result[0]:
+                input_el = result[0]
+                try:
+                    new_accept = input_el.get_attribute('accept') or ''
+                except Exception:
+                    new_accept = accept
+                if new_accept != accept:
+                    accept = new_accept
+                    attach_path = _convert_image_if_needed(path, accept)
+                if _attempt(input_el, attach_path):
+                    return True
 
     return False
 
@@ -893,7 +1013,7 @@ def fill_script_updates(driver, text: str, ensure_storyboard: bool = True, timeo
         _ = click_safely(driver, ctrls.get("storyboard"), force=False)
         time.sleep(0.2)
 
-    script = """
+    script = r"""
     const text = arguments[0];
     const done = arguments[arguments.length - 1];
     try {
