@@ -61,8 +61,8 @@ All endpoints operate against the currently attached Chrome (defaults to debugge
   - Fills the “Optionally describe your video…” textarea beside the media preview.
 - `POST /api/script-updates` `{ text }`
   - Fills the “Describe updates to your script…” composer field.
-- `POST /api/storyboard` `{ scenes: ["scene 1", ...] }`
-  - Opens the storyboard and fills each scene textarea.
+- `POST /api/storyboard` `{ scenes: ["scene 1", ...], script_updates?: "..." }`
+  - Opens the storyboard, fills each scene textarea, and optionally updates the “Describe updates to your script…” field in the storyboard panel.
 - `POST /api/storyboard-media` `{ path }`
   - Attaches media to the storyboard-specific plus button (the floating uploader inside the storyboard panel).
 - `POST /api/settings` `{ model?, orientation?, duration?, resolution? }`

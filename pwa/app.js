@@ -123,8 +123,10 @@
 
   async function doStoryboard() {
     const lines = (scenesEl.value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    if (!lines.length) return log('No scenes provided');
-    const data = await api('/api/storyboard', { method: 'POST', body: JSON.stringify({ scenes: lines }) });
+    const scriptUpdates = scriptUpdatesEl ? scriptUpdatesEl.value || '' : '';
+    if (!lines.length && !scriptUpdates) return log('Provide scenes or script updates');
+    const payload = { scenes: lines, script_updates: scriptUpdates };
+    const data = await api('/api/storyboard', { method: 'POST', body: JSON.stringify(payload) });
     log(`storyboard: ${JSON.stringify(data)}`);
   }
 

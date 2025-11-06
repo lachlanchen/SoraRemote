@@ -887,6 +887,55 @@ def attach_storyboard_media(driver, path: str, timeout: int = 20) -> bool:
     return False
 
 
+def fill_script_updates(driver, text: str, ensure_storyboard: bool = True, timeout: int = 20) -> bool:
+    if ensure_storyboard:
+        ctrls = find_page_controls(driver, timeout=10)
+        _ = click_safely(driver, ctrls.get("storyboard"), force=False)
+        time.sleep(0.2)
+
+    script = """
+    const text = arguments[0];
+    const done = arguments[arguments.length - 1];
+    try {
+        const norm = (str) => (str || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const findByLabel = () => {
+            const labels = Array.from(document.querySelectorAll('label'));
+            for (const label of labels) {
+                if (norm(label.textContent) === 'script updates') {
+                    const card = label.closest('.card') || label.parentElement;
+                    if (card) {
+                        const ta = card.querySelector('textarea');
+                        if (ta) return ta;
+                    }
+                }
+            }
+            return null;
+        };
+        const target = findByLabel() || Array.from(document.querySelectorAll('textarea')).find(el => {
+            const ph = norm(el.getAttribute('placeholder'));
+            return ph.includes('describe updates to your script');
+        });
+        if (!target) {
+            done(false);
+            return;
+        }
+        target.scrollIntoView({ block: 'center' });
+        target.value = text;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+        done(true);
+    } catch (err) {
+        done(false);
+    }
+    """
+
+    try:
+        result = driver.execute_async_script(script, text)
+        return bool(result)
+    except Exception:
+        return False
+
+
 def wait_for_any_text(driver, timeout: int = 30):
     """
     As a generic signal the page rendered, wait for any non-empty body text.

@@ -32,6 +32,7 @@ from agents.sora_agent import (
     fill_storyboard,
     apply_settings,
     attach_storyboard_media,
+    fill_script_updates,
 )
 
 # Optional image preview support (HEIC/HEIF)
@@ -303,48 +304,7 @@ class ScriptUpdateHandler(BaseHandler):
                         wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
                     except Exception:
                         pass
-                    ctrls = find_page_controls(d, timeout=10)
-                    _ = click_safely(d, ctrls.get("storyboard"), force=False)
-                    time.sleep(0.2)
-                    result = d.execute_async_script(
-                        """
-                        const text = arguments[0];
-                        const done = arguments[arguments.length - 1];
-                        try {
-                            const norm = (str) => (str || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                            const findByLabel = () => {
-                                const labels = Array.from(document.querySelectorAll('label'));
-                                for (const label of labels) {
-                                    if (norm(label.textContent) === 'script updates') {
-                                        const card = label.closest('.card') || label.parentElement;
-                                        if (card) {
-                                            const ta = card.querySelector('textarea');
-                                            if (ta) return ta;
-                                        }
-                                    }
-                                }
-                                return null;
-                            };
-                            const target = findByLabel() || Array.from(document.querySelectorAll('textarea')).find(el => {
-                                const ph = norm(el.getAttribute('placeholder'));
-                                return ph.includes('describe updates to your script');
-                            });
-                            if (!target) {
-                                done(false);
-                                return;
-                            }
-                            target.scrollIntoView({ block: 'center' });
-                            target.value = text;
-                            target.dispatchEvent(new Event('input', { bubbles: true }));
-                            target.dispatchEvent(new Event('change', { bubbles: true }));
-                            done(true);
-                        } catch (err) {
-                            done(false);
-                        }
-                        """,
-                        text,
-                    )
-                    return bool(result)
+                    return fill_script_updates(d, text, ensure_storyboard=True, timeout=20)
 
             ok = await asyncio.get_event_loop().run_in_executor(None, _apply)
 
@@ -414,10 +374,11 @@ class StoryboardHandler(BaseHandler):
     async def post(self):
         body = json.loads(self.request.body or b"{}")
         scenes = body.get("scenes") or []
+        script_updates = body.get("script_updates") or ""
         if not isinstance(scenes, list):
             self.set_status(400)
             return self.finish(json.dumps({"ok": False, "error": "scenes must be a list"}))
-        await HUB.emit("storyboard", {"count": len(scenes)})
+        await HUB.emit("storyboard", {"count": len(scenes), "script_updates": len(script_updates)})
         async with ACTION_LOCK:
             await _ensure_chrome_open(DEFAULT_URL)
             def _fill():
@@ -440,7 +401,10 @@ class StoryboardHandler(BaseHandler):
                         wait_for_quiet_resources(d, stable_secs=1.0, timeout=20)
                     except Exception:
                         pass
-                    return fill_storyboard(d, scenes, ensure_storyboard=True, timeout=30)
+                    filled = fill_storyboard(d, scenes, ensure_storyboard=True, timeout=30)
+                    if script_updates:
+                        fill_script_updates(d, script_updates, ensure_storyboard=False, timeout=20)
+                    return filled
             filled = await asyncio.get_event_loop().run_in_executor(None, _fill)
         self.write(json.dumps({"ok": True, "filled": int(filled)}))
 
