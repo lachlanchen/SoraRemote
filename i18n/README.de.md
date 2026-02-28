@@ -1,6 +1,7 @@
 [English](../README.md) · [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md) · [中文 (简体)](README.zh-Hans.md) · [中文（繁體）](README.zh-Hant.md) · [Deutsch](README.de.md) · [Русский](README.ru.md)
 
 
+[![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
 # SoraRemote
 
@@ -9,43 +10,53 @@
 ![Server](https://img.shields.io/badge/Server-Tornado%20API-0EA5E9)
 ![Frontend](https://img.shields.io/badge/Frontend-PWA-10B981)
 ![Status](https://img.shields.io/badge/Status-Experimental-F59E0B)
+![Control%20Modes](https://img.shields.io/badge/Control%20Modes-CLI%20%7C%20REST%20%7C%20PWA-0EA5E9)
+![Runtime](https://img.shields.io/badge/Runtime-Linux%20%7C%20macOS%20%7C%20WSL-6B7280)
 
-SoraRemote ist ein leichtgewichtiges Python- + Selenium-Toolkit zur Automatisierung der Sora-Weboberfläche.
+SoraRemote ist ein leichtgewichtiges Python-+Selenium-Toolkit zur Automatisierung der Sora-Web-UI.
 
-Es unterstützt drei komplementäre Workflows:
-1. CLI-Automatisierungsagent (`agents/sora_agent.py`) für Prompt-Eingabe und UI-Steueraktionen.
-2. CLI-Downloader (`agents/sora_download.py`) zum Finden und Herunterladen von Media-Kandidaten.
-3. Lokaler Tornado-Control-Server + PWA (`server/app.py` + `pwa/`) für API-gesteuerte und browserbasierte Steuerung.
+Es unterstützt drei komplementäre Ausführungsmodi für einen Automatisierungsablauf:
+1. **CLI-Automatisierungs-Agent** (`agents/sora_agent.py`) für das Tippen von Prompts und UI-Aktionen.
+2. **CLI-Downloader** (`agents/sora_download.py`) zum Erkennen und Herunterladen von Medienkandidaten.
+3. **Tornado + PWA-Control-Plane** (`server/app.py` + `pwa/`) für browserseitige Orchestrierung über APIs.
 
-Der aktuelle README-Inhalt bleibt als kanonische Betriebsanleitung erhalten und wurde für mehr Klarheit neu strukturiert.
+Der aktuelle README-Inhalt wird als operative Leitlinie beibehalten und zur besseren Lesbarkeit neu strukturiert.
+
+## 🚀 Schnellzugriff
+
+| Ziel | Einstiegspunkt | Hauptverwendung |
+| --- | --- | --- |
+| Skriptgesteuerte Prompts ausführen | `agents/sora_agent.py` | Komponieraktionen per CLI oder Wrapper-Skript steuern |
+| Generierte Medien abrufen | `agents/sora_download.py` | Kandidaten lokal entdecken und speichern |
+| Fernsteuerung | `server/app.py` + `pwa/` | Steuerung über REST/WebSocket + Browser-Dashboard |
 
 ## ✨ Überblick
 
-Kerndesign:
-- Anbindung an eine persistente Chrome-Sitzung über DevTools-Remote-Debugging (Standardport `9333`).
-- Wiederverwendung des Browserprofil-Status für Login-/Sitzungskontinuität.
-- Automatisierung zentraler Composer-Aktionen (tippen, plus/media anhängen, storyboard, settings, create).
-- Bereitstellung derselben Aktionen über REST + WebSocket-Logs für einen lokalen PWA-Controller.
+Kern-Design:
+- Anbindung an eine persistente Chrome-Sitzung via DevTools-Remote-Debugging (Standardport `9333`).
+- Wiederverwendung des Browser-Profils zur Erhaltung von Login-/Sitzungszuständen.
+- Automatisierung zentraler Komponieraktionen (Tippen, Plus/Medien anhängen, Storyboard, Einstellungen, Erstellen).
+- Exponierung derselben Aktionen über REST + WebSocket-Logs für einen lokalen PWA-Controller.
 
-### Workflow-Schnappschuss
+### Ablaufübersicht
 
-| Workflow | Einstiegspunkt | Hauptanwendung |
+| Ablauf | Einstiegspunkt | Hauptverwendung |
 | --- | --- | --- |
-| CLI-Agent | `agents/sora_agent.py` | Prompts eingeben, Controls klicken, Compose-Flow automatisieren |
-| CLI-Downloader | `agents/sora_download.py` | Herunterladbare Medien finden und Dateien lokal speichern |
-| API + PWA | `server/app.py` + `pwa/` | Remote-Steuerung und visuelle Orchestrierung im Browser |
+| CLI-Agent | `agents/sora_agent.py` | Prompts eingeben, Steuerelemente klicken, Erstellungsfluss automatisieren |
+| CLI-Downloader | `agents/sora_download.py` | Herunterladbare Medien erkennen und lokal speichern |
+| API + PWA | `server/app.py` + `pwa/` | Remote-Steuerung und visuelle Orchestrierung aus dem Browser |
 
 ## ✅ Funktionen
 
-- Chrome-Attach/Start-Flow mit wiederverwendbarem Profil (`--debugger-port`, `--start-chrome`, `--user-data-dir`).
-- Sichere oder erzwungene Klicks für zentrale Controls (`plus`, `storyboard`, `settings`, `create`, `profile`).
-- Prompt-Eingabe mit Selector-Fallback-Verhalten.
-- Media-Attach per Dateipfad mit DataTransfer-Injektion.
-- Storyboard-Szenen befüllen + Script-Updates + storyboard-spezifisches Media-Attach.
-- Einstellungsautomatisierung für model/orientation/duration/resolution.
-- Separater Discover- + Download-Flow mit Browser-Cookies.
-- Tornado-REST-API und Live-WebSocket-Debug-Stream.
-- Installierbare lokale PWA mit Upload, Vorschau und granularen Controls.
+- Chrome-Ankopplungs-/Startablauf mit wiederverwendbarem Profil (`--debugger-port`, `--start-chrome`, `--user-data-dir`).
+- Sicheres oder erzwungenes Klicken bei wichtigen Steuerelementen (`plus`, `storyboard`, `settings`, `create`, `profile`).
+- Texteingabe mit Fallback-Verhalten für Selektoren.
+- Medienanhang per Dateipfad mit DataTransfer-Injektion.
+- Storyboard-Szenarien ausfüllen + Skriptänderungen + storyboard-spezifischen Medienanhang.
+- Einstellungs-Automatisierung für Modell/Ausrichtung/Dauer/Auflösung.
+- Getrennter Flow für Entdecken und Abrufen von Downloads mit Browser-Cookies.
+- Tornado REST API und Live WebSocket-Debug-Stream.
+- Installierbare lokale PWA mit Upload-, Vorschau- und fein granularen Steuerelementen.
 
 ## 🗂️ Projektstruktur
 
@@ -56,6 +67,7 @@ SoraRemote/
 ├─ .github/
 │  └─ FUNDING.yml
 ├─ agents/
+│  ├─ __init__.py
 │  ├─ sora_agent.py
 │  └─ sora_download.py
 ├─ server/
@@ -70,22 +82,31 @@ SoraRemote/
 │  ├─ sora_type.sh
 │  └─ sora_download.sh
 ├─ i18n/
-│  └─ (derzeit leer)
+│  ├─ README.ar.md
+│  ├─ README.de.md
+│  ├─ README.es.md
+│  ├─ README.fr.md
+│  ├─ README.ja.md
+│  ├─ README.ko.md
+│  ├─ README.ru.md
+│  ├─ README.vi.md
+│  ├─ README.zh-Hans.md
+│  └─ README.zh-Hant.md
 ├─ uploads/
 │  └─ .gitkeep
-└─ selenium_template -> ../auto-publish/ (Symlink)
+└─ selenium_template -> ../auto-publish/ (symlink)
 ```
 
 ## 🧩 Voraussetzungen
 
 - Python 3.10+ (empfohlen).
-- Chrome/Chromium ist installiert und ausführbar.
-- Eine Anzeige für nicht-headless Nutzung (`--no-headless`), wenn Login oder interaktive UI erforderlich ist.
-- Zugriff auf ein Sora-Konto im angebundenen Chrome-Profil.
+- Installiertes und ausführbares Chrome/Chromium.
+- Ein Display für nicht-headless Nutzung (`--no-headless`), wenn Login oder interaktive UI erforderlich ist.
+- Zugriff auf ein Sora-Konto im angehängten Chrome-Profil.
 
 ## 📦 Installation
 
-Vorhandener Setup-Flow aus der kanonischen README:
+Bekannte Installationsanleitung aus dem Original-README:
 
 ```bash
 conda activate agent
@@ -94,85 +115,85 @@ pip install -r requirements.txt
 
 Abhängigkeiten in `requirements.txt`:
 
-| Paket | Versionsvorgabe |
+| Paket | Versionsangabe |
 | --- | --- |
 | `selenium` | `>=4.17.2` |
 | `tornado` | `>=6.4` |
 | `Pillow` | `>=9.4.0` |
 | `pillow-heif` | `>=0.16.0` |
 
-## 🚀 Nutzung
+## 🚀 Verwendung
 
 ### Schnellstart (CLI-Agent)
 
-Schnellstart (öffnet Sora in einem verwalteten Browser):
+Kurzer Start (öffnet Sora in einem verwalteten Browser):
 
 ```bash
 python agents/sora_agent.py
 ```
 
-An Chrome mit persistenter Sitzung anbinden (für Sora empfohlen):
+Mit persistenter Sitzung an Chrome anfügen (für Sora empfohlen):
 
 ```bash
 python -m agents.sora_agent --debugger-port 9333 --start-chrome --no-headless --login-timeout 600 --text "A sunset over Tokyo, cinematic."
 ```
 
 Hinweise:
-- Ein Chrome-Fenster öffnet sich auf der Sora-Seite. Falls zur Anmeldung weitergeleitet wird, melde dich an; das Skript wartet und tippt dann deinen Prompt.
-- Um denselben Login wiederzuverwenden, übergib einen festen Profilpfad:
+- Ein Chrome-Fenster öffnet sich auf der Sora-Seite. Falls eine Weiterleitung zum Login erfolgt, anmelden Sie sich; das Skript wartet anschließend und tippt dann Ihren Prompt.
+- Um dasselbe Login wiederzuverwenden, verwenden Sie einen festen Profilpfad:
 
 ```bash
 python -m agents.sora_agent --debugger-port 9333 --start-chrome --no-headless --user-data-dir "$HOME/chrome_sora_profile_9333"
 ```
 
-### Zentrale CLI-Optionen (`agents/sora_agent.py`)
+### Wichtige CLI-Optionen (`agents/sora_agent.py`)
 
 - `--url` Zielseite (Standard: `https://sora.chatgpt.com/explore`).
-- `--debugger-port` an ein bestehendes Chrome anbinden, das mit `--remote-debugging-port=PORT` gestartet wurde.
-- `--start-chrome` startet zusammen mit `--debugger-port` Chrome für dich (mit `--user-data-dir`).
-- `--no-headless` startet einen sichtbaren Browser; nötig für Login und Cloudflare.
-- `--selector` CSS zum Finden des Inputs (Standard passt zur Sora-Composer-Textarea).
-- `--text` Text, der in das Inputfeld geschrieben wird.
-- `--chrome-binary` setzt einen Chrome-/Chromium-Pfad explizit.
+- `--debugger-port` für das Anfügen an ein bestehendes Chrome, gestartet mit `--remote-debugging-port=PORT`.
+- `--start-chrome` startet zusammen mit `--debugger-port` Chrome automatisch für Sie (mit `--user-data-dir`).
+- `--no-headless` für ein sichtbares Browserfenster; erforderlich für Login und Cloudflare.
+- `--selector` CSS-Selektor zum Auffinden des Eingabefelds (Standard entspricht der Sora-Composer-Textarea).
+- `--text` Text, der in das Eingabefeld geschrieben wird.
+- `--chrome-binary` gibt explizit einen Chrome/Chromium-Pfad an.
 - `--action` UI-Aktionen: `list`, `plus`, `storyboard`, `settings`, `create`, `profile`.
-- `--force-click` klickt auch dann, wenn ein Element deaktiviert erscheint.
-- `--login-timeout` Wartefenster für den Abschluss manueller Authentifizierung.
+- `--force-click` klickt auch, wenn ein Element als deaktiviert erscheint.
+- `--login-timeout` Wartezeitfenster für das manuelle Abschließen der Authentifizierung.
 
-Driver-Handling:
-- Der Agent entfernt vor dem Start jeden veralteten `chromedriver` aus `PATH`.
-- Selenium Manager löst anschließend automatisch einen passenden Driver für das installierte Chrome auf.
+Driver-Verhalten:
+- Der Agent entfernt veraltete `chromedriver`-Einträge aus `PATH` vor dem Start.
+- Selenium Manager löst danach automatisch einen passenden Treiber zur installierten Chrome-Version auf.
 
-### CLI-Beispiele (UI-Controls)
+### CLI-Beispiele (UI-Steuerung)
 
-Häufige Controls auflisten und klicken:
+Gemeinsame Steuerelemente auflisten und anklicken:
 
 ```bash
 python -m agents.sora_agent --debugger-port 9333 --no-headless --action list --action storyboard --action settings --action plus
 ```
 
-Create video-Button erzwungen klicken (auch wenn deaktiviert):
+Erzwingt das Klicken auf den Erstellen-Button (auch wenn deaktiviert):
 
 ```bash
 python -m agents.sora_agent --debugger-port 9333 --no-headless --action create --force-click
 ```
 
-Profil/Settings öffnen und bei Bedarf manuell navigieren:
+Profil/Einstellungen öffnen und bei Bedarf manuell navigieren:
 
 ```bash
 python -m agents.sora_agent --debugger-port 9333 --no-headless --action list --action profile
 ```
 
-Wenn `profile` nicht erkannt wird, öffnet der `settings`-Button typischerweise dasselbe Menü.
+Wenn `profile` nicht erkannt wird, öffnet die Schaltfläche `settings` normalerweise dasselbe Menü.
 
-### Downloader-Flow
+### Downloader-Ablauf
 
-Videos mit dem Wrapper-Skript finden und herunterladen:
+Entdecken und herunterladen von Videos mit dem Wrapper-Skript:
 
-- Dry-Run (nur Kandidaten auflisten): `./bin/sora_download.sh --dry-run`
+- Trockentest (nur Kandidaten auflisten): `./bin/sora_download.sh --dry-run`
 - Bis zu 2 Dateien nach `./downloads/sora` herunterladen: `./bin/sora_download.sh --max 2`
-- Ausgabeordner ändern: `OUT_DIR=$HOME/Videos/sora ./bin/sora_download.sh --max 1`
+- Ausgabeverzeichnis ändern: `OUT_DIR=$HOME/Videos/sora ./bin/sora_download.sh --max 1`
 
-Direkte Modulenutzung ist ebenfalls über `python -m agents.sora_download ...` verfügbar.
+Direkte Modulanwendung ist ebenfalls möglich mit `python -m agents.sora_download ...`.
 
 ## 🌐 Control Server + PWA
 
@@ -183,43 +204,43 @@ python server/app.py
 # listens on http://0.0.0.0:8791 and serves the PWA at /
 ```
 
-Standardmäßig verwendet der Server:
-- Wiederverwendung von Chrome auf Remote-Debugging-Port `9333`.
-- Upload-Speicher in `./uploads`, sofern `SORA_UPLOADS_DIR` nicht gesetzt ist.
+Standardmäßig:
+- Reicht Chrome auf Remote-Debugging-Port `9333` wiederverwendet.
+- Speichert Uploads in `./uploads`, sofern `SORA_UPLOADS_DIR` nicht gesetzt ist.
 
 ### Wichtige Endpunkte
 
-Alle Endpunkte arbeiten gegen das aktuell angebundene Chrome (Standard Debugger-Port `9333`).
+Alle Endpunkte arbeiten gegen das aktuell angehängte Chrome (Standard: Debugger-Port `9333`).
 
-| Method | Path | Payload | Beschreibung |
+| Methode | Pfad | Nutzlast | Beschreibung |
 | --- | --- | --- | --- |
-| `GET` | `/api/status` | none | Gibt den DevTools-Bereitschaftsstatus und den aktiven Port zurück. |
-| `POST` | `/api/open` | `{ url? }` | Navigiert den angebundenen Chrome-Tab zur angegebenen URL (Standard: Sora Explore). |
-| `GET` | `/api/actions` | none | Prüft Button-/Control-Status (Metadaten found/displayed/disabled). |
-| `POST` | `/api/click` | `{ key, force? }` | Drückt ein Control, wobei `key ∈ {plus, storyboard, settings, create, profile}`. |
-| `POST` | `/api/type` | `{ text, selector?, url? }` | Schreibt Prompt-Text in den Composer-Selector. |
-| `POST` | `/api/compose` | `{ text, click_create? }` | Öffnet die Compose-Seite, schreibt Text, klickt optional create. |
-| `POST` | `/api/attach` | `{ path, click_plus? }` | Lädt Medien per DataTransfer-Injektion hoch; entfernt vorhandene Medien automatisch (`click_plus` standardmäßig `false`). |
-| `POST` | `/api/describe` | `{ text }` | Befüllt die Textarea „Optionally describe your video…“. |
-| `POST` | `/api/script-updates` | `{ text }` | Befüllt das Feld „Describe updates to your script…“. |
-| `POST` | `/api/storyboard` | `{ scenes: ["scene 1", ...], script_updates?: "...", media_path?: "..." }` | Öffnet Storyboard, befüllt Szenen-Textareas und wendet optional Script-Updates sowie Storyboard-Medien an. |
-| `POST` | `/api/storyboard-media` | `{ path }` | Hängt Medien an den storyboard-spezifischen Uploader an, wenn Storyboard bereits sichtbar ist. |
+| `GET` | `/api/status` | none | Gibt DevTools-Bereitschaftsstatus und den aktiven Port zurück. |
+| `POST` | `/api/open` | `{ url? }` | Öffnet den angeschlossenen Chrome-Tab auf der angegebenen URL (Standard ist Sora Explore). |
+| `GET` | `/api/actions` | none | Prüft den Zustand der Schaltflächen/Steuerelemente (found/displayed/disabled-Metadaten). |
+| `POST` | `/api/click` | `{ key, force? }` | Betätigt eine Steuerung, wobei `key ∈ {plus, storyboard, settings, create, profile}`.
+| `POST` | `/api/type` | `{ text, selector?, url? }` | Schreibt Prompteingabetext in den Composer-Selektor. |
+| `POST` | `/api/compose` | `{ text, click_create? }` | Öffnet die Compose-Seite, schreibt Text und klickt optional auf Erstellen. |
+| `POST` | `/api/attach` | `{ path, click_plus? }` | Lädt Medien via DataTransfer-Injektion hoch; vorhandene Medien werden automatisch entfernt (`click_plus` standardmäßig `false`). |
+| `POST` | `/api/describe` | `{ text }` | Füllt die Textarea „Optionally describe your video…“ aus. |
+| `POST` | `/api/script-updates` | `{ text }` | Füllt das Feld „Describe updates to your script…“ aus. |
+| `POST` | `/api/storyboard` | `{ scenes: ["scene 1", ...], script_updates?: "...", media_path?: "..." }` | Öffnet Storyboard, füllt Szenen-Textareas und wendet optional Skriptänderungen sowie Storyboard-Medien an. |
+| `POST` | `/api/storyboard-media` | `{ path }` | Hängt Medien an den bereits sichtbaren Storyboard-Uploader an. |
 | `POST` | `/api/storyboard-attach-only` | `{ path }` | Stellt sicher, dass Storyboard geöffnet ist, und hängt dann Medien an. |
-| `POST` | `/api/settings` | `{ model?, orientation?, duration?, resolution? }` | Öffnet Settings und setzt gewählte Werte; die Antwort spiegelt angewendete Labels wider. |
-| `POST` | `/api/upload` | multipart form data | Speichert lokale Datei(en) im Upload-Verzeichnis des Servers und gibt serverseitige Pfade zurück. |
-| `POST` | `/api/preview` | multipart form data | Konvertiert ein Bild zu einer PNG-Vorschau (nützlich für HEIC/HEIF/AVIF-Fallback in der UI). |
-| `GET` | `/ws` | WebSocket | Streamt Action-/Debug-Events. |
+| `POST` | `/api/settings` | `{ model?, orientation?, duration?, resolution? }` | Öffnet die Einstellungen und wendet ausgewählte Werte an; die Antwort enthält die angewendeten Labels. |
+| `POST` | `/api/upload` | multipart form data | Speichert lokale Datei(en) im Server-Upload-Verzeichnis und gibt serverseitige Pfade zurück. |
+| `POST` | `/api/preview` | multipart form data | Wandelt Bild zu PNG-Vorschau (nützlich für HEIC/HEIF/AVIF-Fallback in der UI). |
+| `GET` | `/ws` | WebSocket | Sendet Aktionen/Debug-Ereignisse als Stream. |
 
-### PWA-Controls
+### PWA-Steuerung
 
-Öffne `http://0.0.0.0:8791` (oder den gewählten Host), nachdem `server/app.py` gestartet wurde.
+Öffnen Sie `http://0.0.0.0:8791` (oder Ihren gewählten Host), nachdem Sie `server/app.py` gestartet haben.
 
-Highlights aus der bestehenden Implementierung:
-- Medien per Dateiauswahl oder durch Einfügen eines Pfads hochladen, dann **Plus** klicken, um ohne erneutes Öffnen von Systemdateidialogen anzuhängen.
-- Medienbeschreibung im dedizierten Feld „Media description“ anwenden.
-- Unabhängige Controls für **Set Model**, **Set Orientation**, **Set Duration**, **Set Resolution** und Script-Updates.
-- Storyboard-Controls für Szenen, Script-Updates, Öffnen des Storyboard-Panels und Anhängen des aktuellen Storyboard-Pfads.
-- Live-Debug-Log mit API-Aufrufen und von Sora zurückgegebenen Werten (z. B. gewähltes model/duration).
+Wichtige Punkte aus der aktuellen Implementierung:
+- Medien über Dateiauswahl oder durch Einfügen eines Pfads hochladen, anschließend auf **Plus** klicken, um anzuhängen, ohne Dateidialoge des Systems erneut zu öffnen.
+- Medienbeschreibung im dedizierten Feld „Media description“ eintragen.
+- Unabhängige Steuerelemente für **Set Model**, **Set Orientation**, **Set Duration**, **Set Resolution** sowie Skriptänderungen.
+- Storyboard-Steuerelemente für Szenen, Skriptaktualisierungen, Storyboard-Panel öffnen und aktuellen Storyboard-Pfad anhängen.
+- Live-Debug-Log, das API-Aufrufe und von Sora zurückgelieferte Werte anzeigt (beispielsweise gewähltes Modell/Dauer).
 
 ## ⚙️ Konfiguration
 
@@ -228,13 +249,13 @@ Highlights aus der bestehenden Implementierung:
 `server/app.py` liest:
 - `SORA_DEBUGGER_PORT` (Standard `9333`)
 - `SORA_USER_DATA_DIR` (Standard `~/chrome_sora_profile_<port>`)
-- `SORA_DISPLAY` (optionales X-Display)
+- `SORA_DISPLAY` (optional X-Display)
 - `SORA_API_PORT` (Standard `8791`)
 - `SORA_URL` (Standard `https://sora.chatgpt.com/explore`)
-- `SORA_UPLOADS_DIR` (optionale Überschreibung des Upload-Verzeichnisses)
+- `SORA_UPLOADS_DIR` (optionaler Override für Upload-Verzeichnis)
 
-`agents/sora_agent.py` unterstützt außerdem:
-- `CHROME_BINARY` (falls `--chrome-binary` nicht angegeben ist)
+`agents/sora_agent.py` unterstützt zusätzlich:
+- `CHROME_BINARY` (falls `--chrome-binary` nicht gesetzt ist)
 
 Wrapper-Skripte unterstützen:
 - `PORT`, `SORA_PROFILE_DIR`, `TIMEOUT`, `LOGIN_TIMEOUT` (`bin/sora_type.sh`)
@@ -242,7 +263,7 @@ Wrapper-Skripte unterstützen:
 
 ## 🧪 Beispiele
 
-### End-to-End-API-Beispiel (curl)
+### Ende-zu-Ende-API-Beispiel (curl)
 
 ```bash
 # 1) Open Sora
@@ -259,7 +280,7 @@ curl -s -X POST http://127.0.0.1:8791/api/settings -H 'Content-Type: application
 curl -s -X POST http://127.0.0.1:8791/api/click -H 'Content-Type: application/json' -d '{"key":"create"}'
 ```
 
-### Media-Upload + Attach per API
+### Medien-Upload + Anfügen via API
 
 ```bash
 # Upload file and get server path
@@ -273,70 +294,71 @@ curl -s -X POST http://127.0.0.1:8791/api/attach \
 
 ## 🛠️ Entwicklungshinweise
 
-- Derzeit gibt es kein paketiertes Modul (`pyproject.toml`/`setup.py` sind nicht vorhanden).
-- In diesem Repository-Snapshot gibt es derzeit keine CI-/Test-/Lint-Pipeline.
-- `selenium_template` ist ein Symlink auf `../auto-publish/`; dessen Zielinhalt liegt außerhalb dieses Repos.
-- Das PWA-Manifest verweist auf `/icons/icon-192.png` und `/icons/icon-512.png`; Icon-Assets werden in diesem Repository derzeit nicht versioniert.
+- Aktuell gibt es kein Paket-Modul (`pyproject.toml`/`setup.py` sind nicht vorhanden).
+- Aktuell ist keine CI/Test/Lint-Pipeline in diesem Repository-Snapshot enthalten.
+- `selenium_template` ist ein Symlink auf `../auto-publish/`; der Zielinhalt liegt außerhalb dieses Repos.
+- Das PWA-Manifest verweist auf `/icons/icon-192.png` und `/icons/icon-512.png`; Icon-Assets werden hier im Repository derzeit nicht mitverfolgt.
 
 ## 🧯 Fehlerbehebung
 
-- Chrome-Anbindung schlägt fehl:
-  - Stelle sicher, dass Chrome mit `--remote-debugging-port=9333` (oder passendem `--debugger-port`) gestartet wurde.
-  - Prüfe `GET /api/status` auf `devtools_ready: true`.
-- Wiederholte Login-Abfragen:
-  - Verwende ein persistentes `--user-data-dir` und vermeide zufällige Profilpfade.
-- Cloudflare-/Login-Flow kommt nicht voran:
-  - Nutze non-headless (`--no-headless`) und erhöhe `--login-timeout`.
-- Media-Attach macht nichts:
-  - Prüfe, ob der Dateipfad auf der Server-Maschine existiert, und nutze bei Unsicherheit `/api/upload` + den zurückgegebenen Pfad.
-- Storyboard-Media-Attach schlägt fehl:
-  - Versuche `POST /api/storyboard-attach-only` oder öffne zuerst Storyboard, dann `/api/storyboard-media`.
-- Resolution-Control in der PWA nicht verfügbar:
-  - `High` resolution ist nur verfügbar, wenn das model `Sora 2 Pro` ist.
-- Falsche chromedriver-Probleme:
-  - Entferne manuell gepinnten chromedriver aus deinem Shell-Profil; dieses Projekt lässt Selenium Manager absichtlich passende Versionen wählen.
+- Chrome kann nicht angehängt werden:
+  - Stellen Sie sicher, dass Chrome mit `--remote-debugging-port=9333` gestartet wurde (oder mit passendem `--debugger-port`).
+  - Prüfen Sie `GET /api/status` auf `devtools_ready: true`.
+- Wiederholte Login-Eingabefenster:
+  - Verwenden Sie einen persistenten `--user-data-dir` und vermeiden Sie wechselnde Profilpfade.
+- Cloudflare/Login-Flow läuft nicht weiter:
+  - Starten Sie non-headless (`--no-headless`) und erhöhen Sie `--login-timeout`.
+- Medienanhang hat keine Wirkung:
+  - Stellen Sie sicher, dass der Dateipfad auf dem Server vorhanden ist und nutzen Sie im Zweifel `/api/upload` + zurückgegebenen Pfad.
+- Storyboard-Medienanhang schlägt fehl:
+  - Versuchen Sie `POST /api/storyboard-attach-only` oder öffnen Sie zuerst Storyboard und danach `/api/storyboard-media`.
+- Auflösungseinstellung in der PWA nicht verfügbar:
+  - `High`-Auflösung ist nur aktiv, wenn das Modell `Sora 2 Pro` ausgewählt ist.
+- Falscher Chromedriver:
+  - Entfernen Sie manuell festgelegte `chromedriver` aus Ihrem Shell-Profil; dieses Projekt setzt bewusst auf Selenium Manager für passende Versionen.
 
 ## 🧭 Roadmap
 
-Geplante/wahrscheinliche nächste Verbesserungen:
-- Automatisierte Tests für Selector-Stabilität und API-Handler hinzufügen.
-- Lint-/Format-Tooling und CI-Workflows hinzufügen.
-- Versionierte PWA-Icon-Assets und robustere Offline-Caching-Strategie hinzufügen.
+Geplante/zu erwartende nächste Verbesserungen:
+- Tests für Selektorstabilität und API-Handler automatisieren.
+- Lint-/Format-Tools und CI-Workflows ergänzen.
+- Gecachte PWA-Icons nachtragen und bessere Offline-Caching-Strategie implementieren.
 - Formale mehrsprachige README-Dateien unter `i18n/` hinzufügen.
-- Packaging-Metadaten für einfachere Installation hinzufügen.
+- Installations-Metadaten für einfachere Installation ergänzen.
 
 ## 🤝 Mitwirken
 
 Beiträge sind willkommen.
 
-Empfohlener Ablauf:
-1. Fork erstellen und einen Feature-Branch anlegen.
-2. Änderungen klein halten und Reproduktions-/Nutzungshinweise für UI-Automatisierungsänderungen hinzufügen.
-3. Flows manuell mit einer echten angebundenen Chrome-Sitzung validieren.
-4. PR mit Details zum Verhalten vorher/nachher öffnen.
+Vorgeschlagener Ablauf:
+1. Erstellen Sie einen Fork und einen Feature-Branch.
+2. Halten Sie Änderungen fokussiert und fügen Sie bei UI-Automatisierungsänderungen Reproduktions-/Nutzungshinweise hinzu.
+3. Validieren Sie die Abläufe manuell mit einer echten angebundenen Chrome-Sitzung.
+4. Öffnen Sie eine PR mit Vorher-/Nachher-Verhaltensdetails.
 
-Wenn du Selectoren oder Interaktionslogik änderst, füge konkreten Sora-UI-Kontext hinzu, damit Regressionen leichter triagiert werden können.
-
-## ❤️ Support / Sponsoring
-
-Funding-Links aus `.github/FUNDING.yml`:
-- GitHub Sponsors: https://github.com/sponsors/lachlanchen
-- Projektlinks: https://lazying.art, https://chat.lazying.art, https://onlyideas.art
+Wenn Sie Selektoren oder Interaktionslogik ändern, fügen Sie konkrete Sora-UI-Kontexte hinzu, damit Regressionen leichter triagiert werden können.
 
 ## 🙏 Danksagungen
 
-- Selenium und Selenium Manager für Browser-Automatisierung und Driver-Auflösung.
-- Tornado für den leichtgewichtigen asynchronen HTTP/WebSocket-Control-Service.
-- Pillow und `pillow-heif` für lokale Bildkonvertierung/Vorschau-Unterstützung.
+- Selenium und Selenium Manager für Browserautomatisierung und Treiberauflösung.
+- Tornado für den leichten asynchronen HTTP/WebSocket-Kontrollservice.
+- Pillow und `pillow-heif` für lokale Bildkonvertierung/Vorschau.
 
-## 🧱 Known Good Build
+## 🧱 Bekannte stabile Version
 
-Wenn du eine stabile Basis benötigst, die garantiert, dass Storyboard-Media-Attach end-to-end funktioniert (einschließlich der Buttons Open Storyboard / Attach Current Path und des kombinierten Apply-Flows), sieh dir folgenden Commit an:
+Wenn Sie eine stabile Basis benötigen, die sicherstellt, dass Storyboard-Medienanhang end-to-end funktioniert (einschließlich der Schaltflächen Open Storyboard / Attach Current Path und des kombinierten Apply-Flows), nutzen Sie den Commit:
 
 `c6683ed6d9ee0ac110536352867a26a966e3e275`
 
 ## 📄 Lizenz
 
-In diesem Repository-Snapshot ist derzeit keine Lizenzdatei vorhanden (in diesem Entwurf geprüft am **February 28, 2026**).
+In diesem Repository-Snapshot liegt derzeit keine Lizenzdatei vor (in diesem Entwurf geprüft am **28. Februar 2026**).
 
-Annahme: Alle Rechte verbleiben beim Repository-Eigentümer, bis eine Lizenz hinzugefügt wird. Wenn das nicht beabsichtigt ist, füge eine `LICENSE`-Datei hinzu und aktualisiere diesen Abschnitt.
+Voraussetzung: Alle Rechte verbleiben beim Repository-Eigentümer, bis eine Lizenz hinzugefügt wird. Wenn dies nicht beabsichtigt ist, fügen Sie eine `LICENSE`-Datei hinzu und aktualisieren Sie diesen Abschnitt.
+
+
+## ❤️ Support
+
+| Donate | PayPal | Stripe |
+| --- | --- | --- |
+| [![Donate](https://camo.githubusercontent.com/24a4914f0b42c6f435f9e101621f1e52535b02c225764b2f6cc99416926004b7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f446f6e6174652d4c617a79696e674172742d3045413545393f7374796c653d666f722d7468652d6261646765266c6f676f3d6b6f2d6669266c6f676f436f6c6f723d7768697465)](https://chat.lazying.art/donate) | [![PayPal](https://camo.githubusercontent.com/d0f57e8b016517a4b06961b24d0ca87d62fdba16e18bbdb6aba28e978dc0ea21/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50617950616c2d526f6e677a686f754368656e2d3030343537433f7374796c653d666f722d7468652d6261646765266c6f676f3d70617970616c266c6f676f436f6c6f723d7768697465)](https://paypal.me/RongzhouChen) | [![Stripe](https://camo.githubusercontent.com/1152dfe04b6943afe3a8d2953676749603fb9f95e24088c92c97a01a897b4942/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5374726970652d446f6e6174652d3633354246463f7374796c653d666f722d7468652d6261646765266c6f676f3d737472697065266c6f676f436f6c6f723d7768697465)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
