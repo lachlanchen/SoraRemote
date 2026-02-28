@@ -1,18 +1,131 @@
-**Selenium Agent (Sora Example)**
+[English](README.md) · [العربية](i18n/README.ar.md) · [Español](i18n/README.es.md) · [Français](i18n/README.fr.md) · [日本語](i18n/README.ja.md) · [한국어](i18n/README.ko.md) · [Tiếng Việt](i18n/README.vi.md) · [中文 (简体)](i18n/README.zh-Hans.md) · [中文（繁體）](i18n/README.zh-Hant.md) · [Deutsch](i18n/README.de.md) · [Русский](i18n/README.ru.md)
 
-- Activate conda env: `conda activate agent`
-- Install deps: `pip install -r requirements.txt`
+
+# SoraRemote
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20WSL-6c757d)
+![Server](https://img.shields.io/badge/Server-Tornado%20API-0EA5E9)
+![Frontend](https://img.shields.io/badge/Frontend-PWA-10B981)
+![Status](https://img.shields.io/badge/Status-Experimental-F59E0B)
+
+SoraRemote is a lightweight Python + Selenium toolkit for automating the Sora web UI.
+
+It supports three complementary workflows:
+1. CLI automation agent (`agents/sora_agent.py`) for prompt typing and UI control actions.
+2. CLI downloader (`agents/sora_download.py`) for discovering and downloading media candidates.
+3. Local Tornado control server + PWA (`server/app.py` + `pwa/`) for API-driven and browser-based control.
+
+The current README content is preserved as canonical operational guidance and reorganized for clarity.
+
+## ✨ Overview
+
+Core design:
+- Attach to a persistent Chrome session via DevTools remote debugging (default port `9333`).
+- Reuse browser profile state to keep login/session continuity.
+- Automate key composer actions (type, plus/media attach, storyboard, settings, create).
+- Expose the same actions over REST + WebSocket logs for a local PWA controller.
+
+### Workflow snapshot
+
+| Workflow | Entry point | Primary use |
+| --- | --- | --- |
+| CLI Agent | `agents/sora_agent.py` | Type prompts, click controls, automate compose flow |
+| CLI Downloader | `agents/sora_download.py` | Discover downloadable media and save files locally |
+| API + PWA | `server/app.py` + `pwa/` | Remote control and visual orchestration from browser |
+
+## ✅ Features
+
+- Chrome attach/start flow with reusable profile (`--debugger-port`, `--start-chrome`, `--user-data-dir`).
+- Safe or forced clicks for key controls (`plus`, `storyboard`, `settings`, `create`, `profile`).
+- Prompt typing with selector fallback behavior.
+- Media attachment via file path with DataTransfer injection.
+- Storyboard scene filling + script updates + storyboard-specific media attach.
+- Settings automation for model/orientation/duration/resolution.
+- Separate download discovery + fetch flow using browser cookies.
+- Tornado REST API and live WebSocket debug stream.
+- Installable local PWA with upload, preview, and granular controls.
+
+## 🗂️ Project Structure
+
+```text
+SoraRemote/
+├─ README.md
+├─ requirements.txt
+├─ .github/
+│  └─ FUNDING.yml
+├─ agents/
+│  ├─ sora_agent.py
+│  └─ sora_download.py
+├─ server/
+│  └─ app.py
+├─ pwa/
+│  ├─ index.html
+│  ├─ app.js
+│  ├─ styles.css
+│  ├─ manifest.webmanifest
+│  └─ sw.js
+├─ bin/
+│  ├─ sora_type.sh
+│  └─ sora_download.sh
+├─ i18n/
+│  └─ (currently empty)
+├─ uploads/
+│  └─ .gitkeep
+└─ selenium_template -> ../auto-publish/ (symlink)
+```
+
+## 🧩 Prerequisites
+
+- Python 3.10+ (recommended).
+- Chrome/Chromium installed and runnable.
+- A display for non-headless usage (`--no-headless`) when login or interactive UI is required.
+- Sora account access in the attached Chrome profile.
+
+## 📦 Installation
+
+Existing setup flow from the canonical README:
+
+```bash
+conda activate agent
+pip install -r requirements.txt
+```
+
+Dependencies in `requirements.txt`:
+
+| Package | Version spec |
+| --- | --- |
+| `selenium` | `>=4.17.2` |
+| `tornado` | `>=6.4` |
+| `Pillow` | `>=9.4.0` |
+| `pillow-heif` | `>=0.16.0` |
+
+## 🚀 Usage
+
+### Quick start (CLI agent)
 
 Quick start (opens Sora in a managed browser):
-- `python agents/sora_agent.py`
+
+```bash
+python agents/sora_agent.py
+```
 
 Attach to Chrome with persistent session (recommended for Sora):
-- Start and attach using remote debugging on port 9333, open visible Chrome, and wait for login:
-  `python -m agents.sora_agent --debugger-port 9333 --start-chrome --no-headless --login-timeout 600 --text "A sunset over Tokyo, cinematic."`
-  - A Chrome window opens on the Sora page. If you are redirected to login, sign in; the script waits and then types your prompt.
-  - To reuse the same login, pass a fixed profile path: `--user-data-dir "$HOME/chrome_sora_profile_9333"` (created automatically on first run).
 
-Key options:
+```bash
+python -m agents.sora_agent --debugger-port 9333 --start-chrome --no-headless --login-timeout 600 --text "A sunset over Tokyo, cinematic."
+```
+
+Notes:
+- A Chrome window opens on the Sora page. If redirected to login, sign in; the script waits and then types your prompt.
+- To reuse the same login, pass a fixed profile path:
+
+```bash
+python -m agents.sora_agent --debugger-port 9333 --start-chrome --no-headless --user-data-dir "$HOME/chrome_sora_profile_9333"
+```
+
+### Key CLI options (`agents/sora_agent.py`)
+
 - `--url` target page (default: `https://sora.chatgpt.com/explore`).
 - `--debugger-port` attach to an existing Chrome started with `--remote-debugging-port=PORT`.
 - `--start-chrome` if set with `--debugger-port`, launches Chrome for you (with a `--user-data-dir`).
@@ -20,69 +133,209 @@ Key options:
 - `--selector` CSS to locate the input (default matches the Sora composer textarea).
 - `--text` what to type into the input.
 - `--chrome-binary` set a Chrome/Chromium path explicitly.
-- `--action` UI actions: `list`, `plus`, `storyboard`, `settings`, `create`. You can pass multiple `--action` flags to list and/or click these buttons. Use `--force-click` to click disabled buttons.
+- `--action` UI actions: `list`, `plus`, `storyboard`, `settings`, `create`, `profile`.
+- `--force-click` clicks even if an element appears disabled.
+- `--login-timeout` wait window for manual auth completion.
 
 Driver handling:
+- The agent removes any stale `chromedriver` from `PATH` before launch.
+- Selenium Manager then resolves a matching driver for the installed Chrome automatically.
 
-Examples (UI controls):
-- List and click common controls:
-  `python -m agents.sora_agent --debugger-port 9333 --no-headless --action list --action storyboard --action settings --action plus`
-- Force-click the Create video button (even if disabled):
-  `python -m agents.sora_agent --debugger-port 9333 --no-headless --action create --force-click`
+### CLI examples (UI controls)
 
-Downloads and profile
-- Open profile/settings and navigate manually if needed:
-  `python -m agents.sora_agent --debugger-port 9333 --no-headless --action list --action profile`
-  (If `profile` is not detected, the `settings` button typically opens the same menu.)
-- Discover and download videos with a separate handler:
-  - Dry-run (list candidates only): `./bin/sora_download.sh --dry-run`
-  - Download up to 2 files to `./downloads/sora`: `./bin/sora_download.sh --max 2`
-  - Change output folder: `OUT_DIR=$HOME/Videos/sora ./bin/sora_download.sh --max 1`
-- The agent removes any stale `chromedriver` from PATH before launching, letting Selenium Manager download a matching driver for your installed Chrome automatically.
+List and click common controls:
 
-## Control server + PWA
-
-Run the Tornado server to expose a REST API and the web controller:
-
+```bash
+python -m agents.sora_agent --debugger-port 9333 --no-headless --action list --action storyboard --action settings --action plus
 ```
+
+Force-click the Create video button (even if disabled):
+
+```bash
+python -m agents.sora_agent --debugger-port 9333 --no-headless --action create --force-click
+```
+
+Open profile/settings and navigate manually if needed:
+
+```bash
+python -m agents.sora_agent --debugger-port 9333 --no-headless --action list --action profile
+```
+
+If `profile` is not detected, the `settings` button typically opens the same menu.
+
+### Downloader flow
+
+Discover and download videos with the handler script:
+
+- Dry-run (list candidates only): `./bin/sora_download.sh --dry-run`
+- Download up to 2 files to `./downloads/sora`: `./bin/sora_download.sh --max 2`
+- Change output folder: `OUT_DIR=$HOME/Videos/sora ./bin/sora_download.sh --max 1`
+
+Direct module usage is also available via `python -m agents.sora_download ...`.
+
+## 🌐 Control Server + PWA
+
+Run the Tornado server:
+
+```bash
 python server/app.py
-# -> listens on http://0.0.0.0:8791 and serves the PWA at /
+# listens on http://0.0.0.0:8791 and serves the PWA at /
 ```
+
+By default the server:
+- Reuses Chrome on remote debugging port `9333`.
+- Stores uploads in `./uploads` unless `SORA_UPLOADS_DIR` is set.
 
 ### Key endpoints
 
 All endpoints operate against the currently attached Chrome (defaults to debugger port `9333`).
 
-- `POST /api/open` `{ url? }`
-  - Navigates the attached Chrome tab to the given URL (defaults to Sora Explore).
-- `POST /api/attach` `{ path, click_plus? }`
-  - Uploads media. Uses DataTransfer injection and clears existing media automatically. `click_plus` defaults to `false` to avoid launching the OS file picker.
-- `POST /api/describe` `{ text }`
-  - Fills the “Optionally describe your video…” textarea beside the media preview.
-- `POST /api/script-updates` `{ text }`
-  - Fills the “Describe updates to your script…” composer field.
-- `POST /api/storyboard` `{ scenes: ["scene 1", ...], script_updates?: "..." }`
-  - Opens the storyboard, fills each scene textarea, and optionally updates the “Describe updates to your script…” field in the storyboard panel.
-- `POST /api/storyboard-media` `{ path }`
-  - Attaches media to the storyboard-specific plus button (the floating uploader inside the storyboard panel).
-- `POST /api/settings` `{ model?, orientation?, duration?, resolution? }`
-  - Opens the composer settings menu and selects the requested option(s). Each field is optional and can be sent one at a time. The response echoes the label Sora actually selected.
-
-Use `GET /api/actions` to inspect the current button state (enabled/disabled/displayed) and `POST /api/click` with `{ key: "plus" | "storyboard" | "settings" | "create" | "profile" }` for direct button presses.
+| Method | Path | Payload | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/status` | none | Returns DevTools readiness state and active port. |
+| `POST` | `/api/open` | `{ url? }` | Navigates the attached Chrome tab to the given URL (defaults to Sora Explore). |
+| `GET` | `/api/actions` | none | Inspects button/control state (found/displayed/disabled metadata). |
+| `POST` | `/api/click` | `{ key, force? }` | Presses one control where `key ∈ {plus, storyboard, settings, create, profile}`. |
+| `POST` | `/api/type` | `{ text, selector?, url? }` | Types prompt text into composer selector. |
+| `POST` | `/api/compose` | `{ text, click_create? }` | Opens compose page, types text, optionally clicks create. |
+| `POST` | `/api/attach` | `{ path, click_plus? }` | Uploads media via DataTransfer injection; clears existing media automatically (`click_plus` defaults to `false`). |
+| `POST` | `/api/describe` | `{ text }` | Fills the “Optionally describe your video…” textarea. |
+| `POST` | `/api/script-updates` | `{ text }` | Fills the “Describe updates to your script…” field. |
+| `POST` | `/api/storyboard` | `{ scenes: ["scene 1", ...], script_updates?: "...", media_path?: "..." }` | Opens storyboard, fills scene textareas, optionally applies script updates and storyboard media. |
+| `POST` | `/api/storyboard-media` | `{ path }` | Attaches media to storyboard-specific uploader when storyboard is already visible. |
+| `POST` | `/api/storyboard-attach-only` | `{ path }` | Ensures storyboard is open, then attaches media. |
+| `POST` | `/api/settings` | `{ model?, orientation?, duration?, resolution? }` | Opens settings and applies selected values; response echoes applied labels. |
+| `POST` | `/api/upload` | multipart form data | Saves local file(s) to server upload directory and returns server-side paths. |
+| `POST` | `/api/preview` | multipart form data | Converts image to PNG preview (useful for HEIC/HEIF/AVIF fallback in UI). |
+| `GET` | `/ws` | WebSocket | Streams action/debug events. |
 
 ### PWA controls
 
 Open `http://0.0.0.0:8791` (or your chosen host) after starting `server/app.py`.
 
-Highlights:
+Highlights from existing implementation:
+- Upload media via file picker or by pasting a path, then click **Plus** to attach without re-opening system file dialogs.
+- Apply media description in the dedicated “Media description” box.
+- Independent controls for **Set Model**, **Set Orientation**, **Set Duration**, **Set Resolution**, and script updates.
+- Storyboard controls for scenes, script updates, storyboard panel open, and attach current storyboard path.
+- Live debug log showing API calls and Sora-returned values (for example selected model/duration).
 
-- Upload media via the file picker or by pasting a path, then click **Plus** to send it to Sora without reopening the system file dialog.
-- Apply a media description in the “Media description” box — the textarea mirrors the one in the composer.
-- Independent buttons for **Set Model**, **Set Orientation**, **Set Duration**, **Set Resolution**, and **Apply Script Updates** make it easy to test controls one at a time. The server uses in-page JavaScript to select the exact radio option and textarea, so no accidental “three dots” menu clicks.
-- The live debug log shows every API call and the values returned from Sora (e.g., the selected model or duration).
+## ⚙️ Configuration
 
-By default the server reuses Chrome on `--remote-debugging-port 9333` and keeps uploads in `./uploads` unless `SORA_UPLOADS_DIR` is set.
+### Environment variables
 
-### Known Good Build
+`server/app.py` reads:
+- `SORA_DEBUGGER_PORT` (default `9333`)
+- `SORA_USER_DATA_DIR` (default `~/chrome_sora_profile_<port>`)
+- `SORA_DISPLAY` (optional X display)
+- `SORA_API_PORT` (default `8791`)
+- `SORA_URL` (default `https://sora.chatgpt.com/explore`)
+- `SORA_UPLOADS_DIR` (optional upload directory override)
 
-If you need a stable baseline that guarantees storyboard media attachment works end-to-end (including the Open Storyboard / Attach Current Path buttons and the combined Apply flow), check out commit `c6683ed6d9ee0ac110536352867a26a966e3e275`.
+`agents/sora_agent.py` also supports:
+- `CHROME_BINARY` (if `--chrome-binary` is not provided)
+
+Wrapper scripts support:
+- `PORT`, `SORA_PROFILE_DIR`, `TIMEOUT`, `LOGIN_TIMEOUT` (`bin/sora_type.sh`)
+- `PORT`, `SORA_PROFILE_DIR`, `OUT_DIR` (`bin/sora_download.sh`)
+
+## 🧪 Examples
+
+### End-to-end API example (curl)
+
+```bash
+# 1) Open Sora
+curl -s -X POST http://127.0.0.1:8791/api/open -H 'Content-Type: application/json' -d '{}'
+
+# 2) Type prompt
+curl -s -X POST http://127.0.0.1:8791/api/type -H 'Content-Type: application/json' -d '{"text":"A cinematic drone shot over snowy mountains."}'
+
+# 3) Set model and duration
+curl -s -X POST http://127.0.0.1:8791/api/settings -H 'Content-Type: application/json' -d '{"model":"sora 2 pro"}'
+curl -s -X POST http://127.0.0.1:8791/api/settings -H 'Content-Type: application/json' -d '{"duration":15}'
+
+# 4) Click Create
+curl -s -X POST http://127.0.0.1:8791/api/click -H 'Content-Type: application/json' -d '{"key":"create"}'
+```
+
+### Media upload + attach via API
+
+```bash
+# Upload file and get server path
+curl -s -X POST http://127.0.0.1:8791/api/upload -F 'file=@/absolute/path/to/input.jpg'
+
+# Then attach using returned path
+curl -s -X POST http://127.0.0.1:8791/api/attach \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"/absolute/or/server-returned/path.jpg","click_plus":false}'
+```
+
+## 🛠️ Development Notes
+
+- There is currently no packaged module (`pyproject.toml`/`setup.py` not present).
+- There is currently no CI/test/lint pipeline in this repository snapshot.
+- `selenium_template` is a symlink to `../auto-publish/`; its target content is outside this repo.
+- PWA manifest references `/icons/icon-192.png` and `/icons/icon-512.png`; icon assets are not currently tracked in this repository.
+
+## 🧯 Troubleshooting
+
+- Chrome fails to attach:
+  - Ensure Chrome was started with `--remote-debugging-port=9333` (or matching `--debugger-port`).
+  - Check `GET /api/status` for `devtools_ready: true`.
+- Repeated login prompts:
+  - Use a persistent `--user-data-dir` and avoid random profile paths.
+- Cloudflare/login flow not progressing:
+  - Run non-headless (`--no-headless`) and increase `--login-timeout`.
+- Media attach does nothing:
+  - Confirm file path exists on the server machine and use `/api/upload` + returned path if unsure.
+- Storyboard media attach fails:
+  - Try `POST /api/storyboard-attach-only` or open storyboard first, then `/api/storyboard-media`.
+- Resolution control unavailable in PWA:
+  - `High` resolution is only enabled when model is `Sora 2 Pro`.
+- Wrong chromedriver issues:
+  - Remove manually pinned chromedriver from your shell profile; this project intentionally lets Selenium Manager choose matching versions.
+
+## 🧭 Roadmap
+
+Planned/likely next improvements:
+- Add automated tests for selector stability and API handlers.
+- Add lint/format tooling and CI workflows.
+- Add tracked PWA icon assets and stronger offline caching strategy.
+- Add formal multilingual README files under `i18n/`.
+- Add packaging metadata for easier installation.
+
+## 🤝 Contributing
+
+Contributions are welcome.
+
+Suggested process:
+1. Fork and create a feature branch.
+2. Keep changes scoped and include reproduction/usage notes for UI automation changes.
+3. Validate flows manually with a real attached Chrome session.
+4. Open a PR with before/after behavior details.
+
+If you change selectors or interaction logic, include concrete Sora UI context so regressions are easier to triage.
+
+## ❤️ Support / Sponsorship
+
+Funding links from `.github/FUNDING.yml`:
+- GitHub Sponsors: https://github.com/sponsors/lachlanchen
+- Project links: https://lazying.art, https://chat.lazying.art, https://onlyideas.art
+
+## 🙏 Acknowledgements
+
+- Selenium and Selenium Manager for browser automation and driver resolution.
+- Tornado for the lightweight async HTTP/WebSocket control service.
+- Pillow and `pillow-heif` for local image conversion/preview support.
+
+## 🧱 Known Good Build
+
+If you need a stable baseline that guarantees storyboard media attachment works end-to-end (including the Open Storyboard / Attach Current Path buttons and the combined Apply flow), check out commit:
+
+`c6683ed6d9ee0ac110536352867a26a966e3e275`
+
+## 📄 License
+
+No license file is currently present in this repository snapshot (checked in this draft on **February 28, 2026**).
+
+Assumption: all rights remain with the repository owner until a license is added. If this is not intended, add a `LICENSE` file and update this section.
